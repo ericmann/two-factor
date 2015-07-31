@@ -29,3 +29,9 @@ Two_Factor_Core::add_hooks();
  */
 require_once( TWO_FACTOR_DIR . 'class.application-passwords.php' );
 Application_Passwords::add_hooks();
+
+/**
+ * Include the FIDO U2F key system.
+ */
+require_once( TWO_FACTOR_DIR . 'class.fido-u2f-keys.php' );
+FIDO_U2F_Keys::add_hooks();
