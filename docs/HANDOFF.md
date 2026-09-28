@@ -43,3 +43,10 @@ None introduced. Constants: `SECRET_SLUG = 'totp'`, `AFFECTED_USERS_CACHE_TTL = 
 - Tests that need the API skip when it is absent; tests simulate absence through the internal `two_factor_secrets_api_present` filter.
 - `docs/PR-DESCRIPTION.md` is the ready-to-paste upstream PR body; nothing was opened against `WordPress/two-factor`.
 - Feedback logged: none (no Foundry tooling friction).
+
+## Round 1
+
+- Branch: build/2026-09-28. Tasks: 22 done, 0 blocked, 0 skipped.
+- R1-01 (done, b6e6c61): corrected readme FAQ, docs/PR-DESCRIPTION.md and the `secrets` CLI docblock. An undecryptable secret with the Secrets API present locks the user out (no forced fallback); decommissioning requires returning false from `two_factor_use_secrets_api` before `secrets export`. Two behaviour-pinning tests added. No PHP behaviour change.
+- Interpretation: added open question 6 to PR-DESCRIPTION.md (forcing a fallback for undecryptable secrets). TESTS.md unchanged.
+- Manual check: NOT VERIFIED (human) - read the corrected FAQ text.
