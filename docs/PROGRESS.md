@@ -19,7 +19,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P4-01 `wp two-factor status` storage field and `wp two-factor secrets status`
 - [x] P4-02 `wp two-factor secrets migrate`
 - [x] P4-03 `wp two-factor secrets export`
-- [ ] P4-04 Push Phase 4 and record the manual check
+- [x] P4-04 Push Phase 4 and record the manual check
 - [ ] P5-01 readme.txt, readme.md and CHANGELOG.md
 - [ ] P5-02 AGENTS.md, TESTS.md and docblock audit
 - [ ] P5-03 Upstream PR description
@@ -83,3 +83,6 @@ secrets migrate: SECRETS_DEFAULT_BATCH_SIZE, get_secrets_batch_size() helper (re
 
 ### P4-03 — 89affc9
 Two_Factor_Totp::export_user_totp_key (verified, rolls back on mismatch) and CLI secrets export (confirm unless --yes, --user, --batch-size paging, warnings carry error code only). 9 tests; 414 tests both suites.
+
+### P4-04 — 3594837
+Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human): in dev container with feature plugin active (a) wp two-factor secrets status and --format=json render; (b) migrate --dry-run, migrate, then status <user> shows secrets-api; (c) export prompts, --yes completes, status shows plaintext; (d) wp help two-factor secrets shows OPTIONS.
