@@ -15,7 +15,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P2-04 Push Phase 2 and record the manual check
 - [x] P3-01 Affected-user detection and the administrator notice
 - [x] P3-02 Site Health test `two_factor_totp_secret_storage`
-- [ ] P3-03 Push Phase 3 and record the manual check
+- [x] P3-03 Push Phase 3 and record the manual check
 - [ ] P4-01 `wp two-factor status` storage field and `wp two-factor secrets status`
 - [ ] P4-02 `wp two-factor secrets migrate`
 - [ ] P4-03 `wp two-factor secrets export`
@@ -70,3 +70,6 @@ Added AFFECTED_USERS_TRANSIENT/AFFECTED_USERS_CACHE_TTL (300), has_affected_user
 ### P3-02 — 866b1ca
 register_site_health_test, has_plaintext_users(), site_health_secret_storage() with the five status paths in SPEC order. 6 tests; 388 tests both suites.
 Interpretation: API present + no plaintext users is 'good' naming the provider label even when writes are disabled; case (4) only when plaintext remains and can_write() is false.
+
+### P3-03 — 8eea02d
+Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human): (a) migrated user + feature plugin deactivated: red non-dismissible notice on Dashboard for admin, not for editor; (b) Site Health critical, then recommended (re-activated, second user plaintext), then good after migrating; (c) multisite: notice in Network Admin for super admin.
