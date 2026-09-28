@@ -3080,6 +3080,29 @@ class Test_ClassTwoFactorCore extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Plugin uninstall removes TOTP secrets held in the Secrets API and their markers.
+	 *
+	 * @covers Two_Factor_Core::uninstall
+	 */
+	public function test_uninstall_removes_totp_secrets_and_markers() {
+		if ( ! function_exists( 'wp_get_network_secret' ) ) {
+			$this->markTestSkipped( 'Secrets API feature plugin is not loaded.' );
+		}
+
+		$user_id = self::factory()->user->create();
+		$totp    = Two_Factor_Totp::get_instance();
+		$totp->set_user_totp_key( $user_id, 'ABCDEFGH' );
+
+		$this->assertNotNull( wp_get_network_secret( "two-factor/totp-{$user_id}" ) );
+
+		Two_Factor_Core::uninstall();
+
+		$this->assertNull( wp_get_network_secret( "two-factor/totp-{$user_id}" ) );
+		$this->assertSame( '', (string) get_user_meta( $user_id, Two_Factor_Totp::SECRET_NETWORK_META_KEY, true ) );
+		$this->assertSame( '', $totp->get_user_totp_key( $user_id ) );
+	}
+
+	/**
 	 * Plugin uninstall removes the site-wide enabled providers option.
 	 *
 	 * @covers Two_Factor_Core::uninstall

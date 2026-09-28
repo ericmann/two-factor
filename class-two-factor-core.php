@@ -195,6 +195,9 @@ class Two_Factor_Core {
 	/**
 	 * Delete all plugin data on uninstall.
 	 *
+	 * Secrets held in the Secrets API are removed by the providers, but are orphaned in the store
+	 * if the Secrets API is absent when the plugin is uninstalled.
+	 *
 	 * @since 0.10.0
 	 *
 	 * @return void

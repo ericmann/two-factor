@@ -70,6 +70,13 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'two_factor_user_options_' . __CLASS__, array( $this, 'user_two_factor_options' ) );
 
+		// On multisite, `delete_user` also fires when a user is only removed from one site, so wait for the network-level deletion.
+		if ( is_multisite() ) {
+			add_action( 'wpmu_delete_user', array( $this, 'delete_user_secrets_on_user_deletion' ) );
+		} else {
+			add_action( 'delete_user', array( $this, 'delete_user_secrets_on_user_deletion' ) );
+		}
+
 		parent::__construct();
 	}
 
@@ -692,6 +699,21 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	}
 
 	/**
+	 * Delete a user's TOTP data when the user account is deleted.
+	 *
+	 * Wrapper around delete_user_totp_key() so the deletion actions get a callback that returns nothing.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @param int $user_id ID of the user being deleted.
+	 *
+	 * @return void
+	 */
+	public function delete_user_secrets_on_user_deletion( $user_id ) {
+		$this->delete_user_totp_key( $user_id );
+	}
+
+	/**
 	 * Get where a user's TOTP key is stored.
 	 *
 	 * Never migrates.
@@ -1205,6 +1227,47 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 			return 0;
 		}
 		return ( $a < $b ) ? -1 : 1;
+	}
+
+	/**
+	 * Delete every user's TOTP secret held in the Secrets API during plugin uninstall.
+	 *
+	 * When the Secrets API is absent at uninstall time the secrets are orphaned in the store, which
+	 * is acceptable because they cannot be reached from here.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @return void
+	 */
+	public static function uninstall_user_data() {
+		if ( ! Two_Factor_Secrets::is_api_present() ) {
+			return;
+		}
+
+		$seen = array();
+
+		do {
+			// The marker is removed with each secret, so the same offset always yields the next page.
+			$user_ids = ( new WP_User_Query(
+				array(
+					'blog_id'      => 0,
+					'fields'       => 'ID',
+					'number'       => 100,
+					'offset'       => 0,
+					'orderby'      => 'ID',
+					'meta_key'     => self::SECRET_NETWORK_META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Uninstall only.
+					'meta_compare' => 'EXISTS',
+					'count_total'  => false,
+				)
+			) )->get_results();
+
+			$new_ids = array_diff( array_map( 'intval', $user_ids ), $seen );
+
+			foreach ( $new_ids as $user_id ) {
+				$seen[] = $user_id;
+				Two_Factor_Secrets::delete_user_secret( $user_id, self::SECRET_SLUG );
+			}
+		} while ( ! empty( $new_ids ) );
 	}
 
 	/**

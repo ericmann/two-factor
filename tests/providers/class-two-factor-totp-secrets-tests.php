@@ -713,4 +713,103 @@ class Two_Factor_Totp_Secrets_Tests extends Two_Factor_Secrets_UnitTestCase {
 
 		$this->assertSame( array( 'Two_Factor_Backup_Codes' ), array_keys( Two_Factor_Core::get_available_providers_for_user( $user_id ) ) );
 	}
+
+	/**
+	 * Deleting a user removes the secret on single site.
+	 */
+	public function test_delete_user_removes_secret_on_single_site() {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'Single site only.' );
+		}
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+
+		wp_delete_user( $user_id );
+
+		$this->assertNull( wp_get_network_secret( "two-factor/totp-{$user_id}" ) );
+	}
+
+	/**
+	 * Removing a user from one site keeps the network secret.
+	 */
+	public function test_delete_user_keeps_secret_on_multisite() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Multisite only.' );
+		}
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$blog_id = self::factory()->blog->create();
+		add_user_to_blog( $blog_id, $user_id, 'subscriber' );
+		$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+
+		switch_to_blog( $blog_id );
+		try {
+			wp_delete_user( $user_id );
+		} finally {
+			restore_current_blog();
+		}
+
+		$this->assertNotNull( wp_get_network_secret( "two-factor/totp-{$user_id}" ) );
+		$this->assertSame( (string) get_current_network_id(), $this->marker( $user_id ) );
+	}
+
+	/**
+	 * Network deletion removes the secret.
+	 */
+	public function test_wpmu_delete_user_removes_secret_on_multisite() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Multisite only.' );
+		}
+		$this->require_secrets_api();
+		require_once ABSPATH . 'wp-admin/includes/ms.php';
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+
+		wpmu_delete_user( $user_id );
+
+		$this->assertNull( wp_get_network_secret( "two-factor/totp-{$user_id}" ) );
+		$this->assertSame( '', $this->marker( $user_id ) );
+	}
+
+	/**
+	 * The right deletion hook is registered.
+	 */
+	public function test_constructor_registers_correct_deletion_hook() {
+		$callback = array( Two_Factor_Totp::get_instance(), 'delete_user_secrets_on_user_deletion' );
+
+		$this->assertNotFalse( has_action( is_multisite() ? 'wpmu_delete_user' : 'delete_user', $callback ) );
+		$this->assertFalse( has_action( is_multisite() ? 'delete_user' : 'wpmu_delete_user', $callback ) );
+	}
+
+	/**
+	 * Uninstall removes all secrets.
+	 */
+	public function test_uninstall_user_data_removes_secrets_for_all_marked_users() {
+		$this->require_secrets_api();
+		$user_ids = array( $this->user(), $this->user(), $this->user() );
+		foreach ( $user_ids as $user_id ) {
+			$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+		}
+
+		Two_Factor_Totp::uninstall_user_data();
+
+		foreach ( $user_ids as $user_id ) {
+			$this->assertNull( wp_get_network_secret( "two-factor/totp-{$user_id}" ) );
+			$this->assertSame( '', $this->marker( $user_id ) );
+		}
+	}
+
+	/**
+	 * Uninstall does nothing without the API.
+	 */
+	public function test_uninstall_user_data_noop_when_api_absent() {
+		$user_id = $this->user();
+		update_user_meta( $user_id, Two_Factor_Totp::SECRET_NETWORK_META_KEY, (string) get_current_network_id() );
+		$this->simulate_api_absent();
+
+		Two_Factor_Totp::uninstall_user_data();
+
+		$this->assertSame( (string) get_current_network_id(), $this->marker( $user_id ) );
+	}
 }
