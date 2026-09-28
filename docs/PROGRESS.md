@@ -23,7 +23,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P5-01 readme.txt, readme.md and CHANGELOG.md
 - [x] P5-02 AGENTS.md, TESTS.md and docblock audit
 - [x] P5-03 Upstream PR description
-- [ ] P5-04 Push Phase 5 and record the final manual check
+- [x] P5-04 Push Phase 5 and record the final manual check
 
 ## Log
 (one entry per task, appended by implement)
@@ -95,3 +95,6 @@ AGENTS.md (adapter bullet, marker row, Secrets API hooks, WP-CLI, base-class hoo
 
 ### P5-03 — b869510
 Wrote docs/PR-DESCRIPTION.md with the required sections in order; SPEC 8 questions verbatim plus the two extra core-hook naming questions. No PR opened.
+
+### P5-04 — b3d571f
+Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human): (a) read docs/PR-DESCRIPTION.md and readme.txt FAQ for tone; (b) confirm CI green on the pushed branch; (c) open the fork PR (base master, ericmann/two-factor, draft) only if the pipeline PR step did not; (d) rerun the P2-04 and P3-03 browser checks on the final commit.
