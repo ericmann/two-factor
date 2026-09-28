@@ -5,7 +5,7 @@ Started: 2026-09-28T19:43:32.427Z
 ## Tasks
 - [x] P0-01 Create the build branch and load the Secrets API feature plugin in the tests environment
 - [x] P0-02 PHPStan stubs for the Secrets API and PHPUnit exclusion of the stub directory
-- [ ] P0-03 Push Phase 0 and record the manual environment check
+- [x] P0-03 Push Phase 0 and record the manual environment check
 - [ ] P1-01 `Two_Factor_Secrets` adapter with tests and the shared secrets test case
 - [ ] P1-02 Provider base hooks and fail-closed handling of enrolled-but-unavailable providers in core
 - [ ] P1-03 Push Phase 1 and record the manual check
@@ -33,3 +33,6 @@ Config/bootstrap done earlier by operator (e9e18d7); added two acceptance tests 
 
 ### P0-02 — 51fff02
 Added tests/phpstan/secrets-api-stubs.php, scanFiles entry, and tests/phpstan exclude in both phpunit configs. Lint and both suites green (305 tests).
+
+### P0-03 — 9136355
+Pushed build/2026-09-28 to origin (ericmann/two-factor). gh default repo is ericmann/two-factor. Empty commit used as task commit. Manual check: NOT VERIFIED (human): (a) fresh clone env start clones ericmann/secrets-api v0.2.1; (b) CI passes on WP latest, 7.0-branch, 7.1-branch legs; (c) gh repo set-default --view shows the fork.
