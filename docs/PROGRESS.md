@@ -17,7 +17,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P3-02 Site Health test `two_factor_totp_secret_storage`
 - [x] P3-03 Push Phase 3 and record the manual check
 - [x] P4-01 `wp two-factor status` storage field and `wp two-factor secrets status`
-- [ ] P4-02 `wp two-factor secrets migrate`
+- [x] P4-02 `wp two-factor secrets migrate`
 - [ ] P4-03 `wp two-factor secrets export`
 - [ ] P4-04 Push Phase 4 and record the manual check
 - [ ] P5-01 readme.txt, readme.md and CHANGELOG.md
@@ -77,3 +77,6 @@ Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human
 ### P4-01 — 60c5017
 status now has totp_storage (last field); new secrets() dispatcher with status action (migrate/export cases left for P4-02/P4-03; default branch errors 'Unknown action ... <status|migrate|export>'); Two_Factor_Totp::count_users_by_storage(). 9 CLI tests; 397 tests both suites.
 Interpretation: Two_Factor_Secrets::provider_label() returns '' whenever is_api_present() is false (so the test seam is honoured). secrets_status booleans are emitted as 'true'/'false' strings; counts as ints.
+
+### P4-02 — f5d6fbf
+secrets migrate: SECRETS_DEFAULT_BATCH_SIZE, get_secrets_batch_size() helper (reusable by export), --user, --dry-run, paged WP_User_Query using Two_Factor_Totp::migrate_user_totp_key (offset advances only past skipped/failed users). 8 tests; 405 tests both suites. Added tear_down in CLI test class to reset Two_Factor_Secrets::$test_overrides.
