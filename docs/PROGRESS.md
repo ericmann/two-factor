@@ -24,7 +24,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P5-02 AGENTS.md, TESTS.md and docblock audit
 - [x] P5-03 Upstream PR description
 - [x] P5-04 Push Phase 5 and record the final manual check
-- [ ] R1-01 Correct the lockout and decommissioning documentation for Secrets API storage, with behaviour-pinning tests
+- [x] R1-01 Correct the lockout and decommissioning documentation for Secrets API storage, with behaviour-pinning tests
 
 ## Log
 (one entry per task, appended by implement)
@@ -99,3 +99,6 @@ Wrote docs/PR-DESCRIPTION.md with the required sections in order; SPEC 8 questio
 
 ### P5-04 — b3d571f
 Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human): (a) read docs/PR-DESCRIPTION.md and readme.txt FAQ for tone; (b) confirm CI green on the pushed branch; (c) open the fork PR (base master, ericmann/two-factor, draft) only if the pipeline PR step did not; (d) rerun the P2-04 and P3-03 browser checks on the final commit.
+
+### R1-01 — b6e6c61
+Docs-only fix plus 2 tests (test_unreadable_secret_with_api_present_keeps_totp_and_does_not_force_fallback, test_exported_secret_is_remigrated_on_read_unless_filter_opts_out). readme FAQ, PR-DESCRIPTION fail-closed bullet/export bullet, CLI secrets() docblock updated. Interpretation: added open question 6 to PR-DESCRIPTION; TESTS.md not changed (lists class only). CRLF preserved in readme.txt. Verify green (lint, compat, both suites).
