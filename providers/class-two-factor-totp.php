@@ -88,6 +88,7 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'two_factor_user_options_' . __CLASS__, array( $this, 'user_two_factor_options' ) );
 
+		add_filter( 'site_status_tests', array( $this, 'register_site_health_test' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notice_secrets_api_missing' ) );
 		add_action( 'network_admin_notices', array( $this, 'admin_notice_secrets_api_missing' ) );
 
@@ -817,6 +818,134 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 				'dismissible' => false,
 			)
 		);
+	}
+
+	/**
+	 * Register the Site Health test for TOTP secret storage.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @param array $tests Site Health tests.
+	 *
+	 * @return array
+	 */
+	public function register_site_health_test( $tests ) {
+		$tests['direct']['two_factor_totp_secret_storage'] = array(
+			'label' => __( 'Authenticator app secret storage', 'two-factor' ),
+			'test'  => array( $this, 'site_health_secret_storage' ),
+		);
+
+		return $tests;
+	}
+
+	/**
+	 * Whether any user still has a plaintext TOTP secret in user meta.
+	 *
+	 * Not cached.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @return bool
+	 */
+	public static function has_plaintext_users() {
+		$users = get_users(
+			array(
+				'blog_id'      => 0,
+				'meta_key'     => self::SECRET_META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Single-row lookup for Site Health.
+				'meta_value'   => '', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Single-row lookup for Site Health.
+				'meta_compare' => '!=',
+				'number'       => 1,
+				'fields'       => 'ID',
+				'count_total'  => false,
+			)
+		);
+
+		return ! empty( $users );
+	}
+
+	/**
+	 * Site Health test result for TOTP secret storage.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @return array
+	 */
+	public function site_health_secret_storage() {
+		$result = array(
+			'label'       => '',
+			'status'      => 'good',
+			'badge'       => array(
+				'label' => __( 'Security', 'two-factor' ),
+				'color' => 'blue',
+			),
+			'description' => '',
+			'actions'     => '',
+			'test'        => 'two_factor_totp_secret_storage',
+		);
+
+		if ( self::has_affected_users() ) {
+			$result['label']          = __( 'Some authenticator app secrets are unavailable', 'two-factor' );
+			$result['status']         = 'critical';
+			$result['badge']['color'] = 'red';
+			$result['description']    = sprintf(
+				'<p>%s</p>',
+				sprintf(
+					/* translators: %s: WP-CLI export command. */
+					esc_html__( 'Some users\' authenticator app secrets were stored with the WordPress Secrets API, which this site cannot currently reach. Those users cannot use their authenticator app. Re-activate the Secrets API, or run %s before deactivating it.', 'two-factor' ),
+					'<code>wp two-factor secrets export</code>'
+				)
+			);
+
+			return $result;
+		}
+
+		if ( ! Two_Factor_Secrets::is_api_present() ) {
+			$result['label']       = __( 'Authenticator app secrets are stored in user meta', 'two-factor' );
+			$result['description'] = sprintf(
+				'<p>%s</p>',
+				esc_html__( 'TOTP secrets are stored in user meta; the WordPress Secrets API, when available, will be used automatically.', 'two-factor' )
+			);
+
+			return $result;
+		}
+
+		if ( ! self::has_plaintext_users() ) {
+			$result['label']       = __( 'Authenticator app secrets are stored securely', 'two-factor' );
+			$result['description'] = sprintf(
+				'<p>%s</p>',
+				sprintf(
+					/* translators: %s: name of the secrets storage provider. */
+					esc_html__( 'Authenticator app secrets are stored with the WordPress Secrets API (%s).', 'two-factor' ),
+					esc_html( Two_Factor_Secrets::provider_label() )
+				)
+			);
+
+			return $result;
+		}
+
+		if ( Two_Factor_Secrets::can_write() ) {
+			$result['label']          = __( 'Some authenticator app secrets are not yet migrated', 'two-factor' );
+			$result['status']         = 'recommended';
+			$result['badge']['color'] = 'orange';
+			$result['description']    = sprintf(
+				'<p>%s</p>',
+				sprintf(
+					/* translators: %s: WP-CLI migrate command. */
+					esc_html__( 'Some authenticator app secrets are still stored in user meta. They move to the WordPress Secrets API when those users next log in, or you can run %s to migrate them all now.', 'two-factor' ),
+					'<code>wp two-factor secrets migrate</code>'
+				)
+			);
+
+			return $result;
+		}
+
+		$result['label']       = __( 'Authenticator app secrets remain in user meta', 'two-factor' );
+		$result['description'] = sprintf(
+			'<p>%s</p>',
+			esc_html__( 'Migration to the WordPress Secrets API is disabled by the two_factor_use_secrets_api filter or a read-only secrets provider, so authenticator app secrets remain in user meta.', 'two-factor' )
+		);
+
+		return $result;
 	}
 
 	/**

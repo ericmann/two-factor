@@ -971,4 +971,84 @@ class Two_Factor_Totp_Secrets_Tests extends Two_Factor_Secrets_UnitTestCase {
 			set_current_screen( 'front' );
 		}
 	}
+
+	/**
+	 * The Site Health test is registered.
+	 */
+	public function test_site_health_test_is_registered() {
+		$tests = apply_filters( 'site_status_tests', array( 'direct' => array() ) );
+
+		$this->assertArrayHasKey( 'two_factor_totp_secret_storage', $tests['direct'] );
+	}
+
+	/**
+	 * Affected users are critical.
+	 */
+	public function test_site_health_critical_when_affected_users() {
+		$this->seed_marker();
+		$this->simulate_api_absent();
+
+		$result = $this->provider->site_health_secret_storage();
+
+		$this->assertSame( 'critical', $result['status'] );
+		$this->assertSame( 'red', $result['badge']['color'] );
+		$this->assertStringContainsString( 'wp two-factor secrets export', $result['description'] );
+		$this->assertSame( 'two_factor_totp_secret_storage', $result['test'] );
+	}
+
+	/**
+	 * Remaining plaintext is recommended to migrate.
+	 */
+	public function test_site_health_recommended_when_plaintext_remains() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		update_user_meta( $user_id, Two_Factor_Totp::SECRET_META_KEY, 'ABCDEFGH' );
+
+		$result = $this->provider->site_health_secret_storage();
+
+		$this->assertSame( 'recommended', $result['status'] );
+		$this->assertSame( 'orange', $result['badge']['color'] );
+		$this->assertStringContainsString( 'wp two-factor secrets migrate', $result['description'] );
+	}
+
+	/**
+	 * Fully migrated is good and names the provider.
+	 */
+	public function test_site_health_good_when_fully_migrated() {
+		$this->require_secrets_api();
+
+		$result = $this->provider->site_health_secret_storage();
+
+		$this->assertSame( 'good', $result['status'] );
+		$this->assertStringContainsString( esc_html( Two_Factor_Secrets::provider_label() ), $result['description'] );
+	}
+
+	/**
+	 * Opting out with plaintext remaining is good.
+	 */
+	public function test_site_health_good_when_filter_opts_out_with_plaintext() {
+		$this->require_secrets_api();
+		add_filter( 'two_factor_use_secrets_api', '__return_false' );
+		update_user_meta( $this->user(), Two_Factor_Totp::SECRET_META_KEY, 'ABCDEFGH' );
+
+		$result = $this->provider->site_health_secret_storage();
+
+		$this->assertSame( 'good', $result['status'] );
+		$this->assertStringContainsString( 'two_factor_use_secrets_api', $result['description'] );
+	}
+
+	/**
+	 * Without the API the message is neutral.
+	 */
+	public function test_site_health_good_neutral_when_api_absent() {
+		$this->simulate_api_absent();
+
+		$result = $this->provider->site_health_secret_storage();
+
+		$this->assertSame( 'good', $result['status'] );
+		$this->assertSame(
+			'<p>TOTP secrets are stored in user meta; the WordPress Secrets API, when available, will be used automatically.</p>',
+			$result['description']
+		);
+	}
 }
