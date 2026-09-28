@@ -7,7 +7,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P0-02 PHPStan stubs for the Secrets API and PHPUnit exclusion of the stub directory
 - [x] P0-03 Push Phase 0 and record the manual environment check
 - [x] P1-01 `Two_Factor_Secrets` adapter with tests and the shared secrets test case
-- [ ] P1-02 Provider base hooks and fail-closed handling of enrolled-but-unavailable providers in core
+- [x] P1-02 Provider base hooks and fail-closed handling of enrolled-but-unavailable providers in core
 - [ ] P1-03 Push Phase 1 and record the manual check
 - [ ] P2-01 TOTP tri-state read, Secrets API writes and lazy migration
 - [ ] P2-02 Fail-closed validation, login prompt, profile UI and the login lockout regression
@@ -40,3 +40,7 @@ Pushed build/2026-09-28 to origin (ericmann/two-factor). gh default repo is eric
 ### P1-01 — 07e94fb
 Added class-two-factor-secrets.php (Two_Factor_Secrets), required in two-factor.php, wired into phpstan paths and both phpunit coverage whitelists, bootstrap requires tests/class-two-factor-secrets-test-case.php. 18 tests in group secrets, both suites green (323 tests).
 Interpretation: test class is Two_Factor_Secrets_Tests in tests/class-two-factor-secrets-tests.php (not Tests_Two_Factor_Secrets): PHPCS requires file name = class name for non-WP test-case parents, and a file sorting before class-two-factor-core.php breaks core tests (core registers set_auth_cookie hooks in set_up_before_class; an earlier test class wipes them). Later test files must sort after class-two-factor-core.php or extend nothing that runs first. Also the internal filter param is $enabled (PHPCS reserved keyword).
+
+### P1-02 — 1d74d90
+Base Two_Factor_Provider::is_enrolled_but_unavailable_for_user() (false) and static uninstall_user_data() (no-op); core get_available_providers_for_user extracts resolve_fallback_provider_for_user and adds the enrolled-but-unavailable branch (fallback or no_available_2fa_methods WP_Error with unavailable_providers); uninstall() calls uninstall_user_data before options/meta deletion. Fixture tests/class-two-factor-dummy-unavailable.php. 7 new tests; 330 in both suites.
+Interpretation: helper has optional 4th by-ref $filtered param to preserve raw filtered value in error data; fixture is loaded through the two_factor_providers path (not tests/bootstrap.php) because Two_Factor_Dummy is not loaded at bootstrap time. phpcs:ignore on unused $user in base method mirrors pre_process_authentication precedent.
