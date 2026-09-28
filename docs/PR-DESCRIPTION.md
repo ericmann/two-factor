@@ -1,12 +1,27 @@
 # Store TOTP secrets with the WordPress Secrets API
 
+Closes #455. Supersedes #819.
+
 ## Motivation
 
 Two-Factor keeps every user's TOTP shared secret in plaintext user meta (`_two_factor_totp_key`, `Two_Factor_Totp::SECRET_META_KEY`). Anyone who can read the database, a backup, or a SQL injection dump can mint valid codes for every TOTP user.
 
-An earlier attempt (PR #389, "recrypt") added homegrown XChaCha20 encryption keyed off `SECURE_AUTH_SALT`. It stalled because rotating the salt needed a bespoke re-encryption process, and it made Two-Factor responsible for cryptography and key management.
+Two earlier attempts encrypted the secret inside Two-Factor itself:
+
+- #389 ("recrypt") used XChaCha20 keyed off `SECURE_AUTH_SALT`. It stalled because rotating the salt needed a bespoke re-encryption process.
+- #819 used AES-256-GCM with opt-in `wp-config.php` keys. In review, @georgestephanis preferred an independent architecture that both Two-Factor and other plugins could share over each plugin building its own. #819 was closed so this integration could replace it.
+
+Both made Two-Factor responsible for cryptography and key management.
 
 The WordPress Secrets API removes that burden. It is tracked in Trac #66187 (milestone 7.2), core PR WordPress/wordpress-develop#13759, and is available today as a feature plugin (`ericmann/secrets-api`, v0.2.1). This change uses it when present and changes nothing when it is not.
+
+## Answering the fail-open question from #819
+
+On #819, @georgestephanis asked whether a decryption failure after a bad or rotated key could fail open, leaving TOTP unenforced instead of blocking the login. Here it cannot, and that is deliberate:
+
+- **An unreadable secret never authenticates.** It is never treated as "TOTP not configured" and never silently re-enrolls the user.
+- **Core had a separate fail-open path, which this PR closes.** Core forced the fallback provider only when a user's stored providers were *unregistered*. A provider that was registered but unusable produced an empty provider list, and the user then logged in with a password alone. The new generic hook `Two_Factor_Provider::is_enrolled_but_unavailable_for_user()` lets core force the fallback in that case, or refuse the login outright with `no_available_2fa_methods`. Regression tests cover a user whose only method is TOTP.
+- **If the secret can't be decrypted while the Secrets API is present, the user is locked out, and that is intentional.** For example, salts were rotated without `WP_SECRETS_KEY`. The user stays locked out until an administrator resets their authenticator app (backup codes still work). We deliberately do not quietly move them to email, because a changed or broken key should be noticed, not papered over.
 
 ## Design summary
 
@@ -27,6 +42,7 @@ The WordPress Secrets API removes that burden. It is tracked in Trac #66187 (mil
   - `two_factor_secrets_migrated`, `two_factor_secrets_migration_failed` and `two_factor_secret_unavailable` actions. No hook ever receives a plaintext secret.
   - `two_factor_secrets_api_present` is an internal test seam that can only force "absent".
 - **Provider base class.** Two new generic hooks: `is_enrolled_but_unavailable_for_user()` and the static `uninstall_user_data()`. Core stays free of TOTP logic.
+- **Works while TOTP is disabled.** Secrets outlive the provider being enabled, so `Two_Factor_Totp::register_secret_lifecycle_hooks()` registers user-deletion cleanup, the admin notice and the Site Health test statically. `two-factor.php` always loads the TOTP class and calls it. The provider itself is not instantiated, so its REST routes stay off while it is disabled.
 
 ## Migration and downgrade story
 
@@ -60,4 +76,3 @@ The WordPress Secrets API removes that burden. It is tracked in Trac #66187 (mil
 3. Naming the network-scope secrets `two-factor/totp-{ID}` puts one row per TOTP user in the options table. Is that acceptable on large networks, versus waiting for a user-scoped store in the Secrets API?
 4. `Two_Factor_Provider::is_enrolled_but_unavailable_for_user()` is a generic core hook that lets any provider say "enrolled, but currently unusable", so core forces the fallback instead of failing open. Is that the right name and shape for a core-level concept?
 5. `Two_Factor_Provider::uninstall_user_data()` is a bulk, static hook called once during uninstall for data held outside user meta. Would maintainers prefer a different name or a per-user shape?
-6. Should a secret that is unreadable while the Secrets API is present also force the fallback provider, as a missing API does? Today the user is locked out until an administrator resets them.
