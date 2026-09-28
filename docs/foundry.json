@@ -1,0 +1,190 @@
+{
+  "verify": [
+    "npm run lint",
+    "composer lint-compat",
+    { "cmd": "npm test", "timeoutMs": 1800000 }
+  ],
+  "extraVerify": {
+    ".wp-env.json": [{ "cmd": "npm run env start", "timeoutMs": 900000 }],
+    "tests/phpstan/": ["npm run lint:phpstan"]
+  },
+  "build": [],
+  "baseBranch": "feature/secrets-api-totp",
+  "branchPrefix": "build/",
+  "maxRounds": 3,
+  "maxRoundsHard": 6,
+  "constraints": [
+    {
+      "id": "secrets-api-only-in-adapter",
+      "description": "Only class-two-factor-secrets.php may call the WordPress Secrets API functions; every other file goes through Two_Factor_Secrets.",
+      "paths": ["two-factor.php", "class-two-factor-core.php", "class-two-factor-compat.php", "providers/", "settings/", "CLI/"],
+      "pattern": "\\bwp_(?:get|set|delete|list|retire)_(?:network_)?secrets?(?:_version)?\\s*\\(|\\bwp_secrets_(?:provider_is_writable|provider_label|memzero|validate_name)\\s*\\(|\\bwp_import_option_as_secret\\s*\\(",
+      "shouldMatch": [
+        "$secret = wp_get_network_secret( $name );",
+        "wp_set_network_secret($name, $value);",
+        "if ( wp_secrets_provider_is_writable() ) {",
+        "wp_secrets_memzero( $key );",
+        "$r = wp_delete_secret( $name );",
+        "$names = wp_list_network_secrets( 'two-factor' );"
+      ],
+      "shouldNotMatch": [
+        "Two_Factor_Secrets::get_user_secret( $user_id, 'totp' );",
+        "function_exists( 'wp_get_network_secret' )",
+        "$label = Two_Factor_Secrets::provider_label();"
+      ]
+    },
+    {
+      "id": "network-scope-only",
+      "description": "Never use the site-scope Secrets API functions anywhere, including the adapter; TOTP secrets are network scope on single site and multisite.",
+      "paths": ["class-two-factor-secrets.php", "two-factor.php", "class-two-factor-core.php", "providers/", "settings/", "CLI/"],
+      "pattern": "\\bwp_(?:get|set|delete|list|retire)_secrets?(?:_version)?\\s*\\(|\\bwp_import_option_as_secret\\s*\\(",
+      "shouldMatch": [
+        "wp_get_secret( $name )",
+        "wp_set_secret($n, $v);",
+        "wp_list_secrets( 'two-factor' )",
+        "wp_delete_secret( $name );"
+      ],
+      "shouldNotMatch": [
+        "wp_get_network_secret( $name )",
+        "wp_set_network_secret( $name, $value )",
+        "wp_delete_network_secret( $name );"
+      ]
+    },
+    {
+      "id": "secret-name-prefix-only-in-adapter",
+      "description": "The two-factor/{slug}-{id} secret name is built only by Two_Factor_Secrets::get_secret_name(); nothing else spells the prefix (the REST namespace two-factor/1.0 is unrelated).",
+      "paths": ["two-factor.php", "class-two-factor-core.php", "providers/", "settings/", "CLI/"],
+      "pattern": "['\"]two-factor\\/(?!1\\.0\\b)",
+      "shouldMatch": [
+        "$name = 'two-factor/' . $slug . '-' . $user_id;",
+        "\"two-factor/{$slug}-{$user_id}\"",
+        "'two-factor/totp-' . $user_id"
+      ],
+      "shouldNotMatch": [
+        "const REST_NAMESPACE = 'two-factor/1.0';",
+        "Two_Factor_Secrets::get_secret_name( $user_id, 'totp' )",
+        "'/two-factor/1.0/totp'"
+      ]
+    },
+    {
+      "id": "totp-meta-keys-via-constants",
+      "description": "The TOTP secret and marker meta keys are referenced through Two_Factor_Totp::SECRET_META_KEY / SECRET_NETWORK_META_KEY (or Two_Factor_Secrets::get_marker_meta_key()), never as string literals outside their definitions.",
+      "paths": ["class-two-factor-secrets.php", "class-two-factor-core.php", "two-factor.php", "settings/", "CLI/", "providers/class-two-factor-backup-codes.php", "providers/class-two-factor-email.php", "providers/class-two-factor-provider.php"],
+      "pattern": "['\"]_two_factor_totp_key(?:_network)?['\"]",
+      "shouldMatch": [
+        "get_user_meta( $id, '_two_factor_totp_key_network', true )",
+        "'meta_key' => '_two_factor_totp_key',",
+        "delete_user_meta( $id, \"_two_factor_totp_key\" );"
+      ],
+      "shouldNotMatch": [
+        "get_user_meta( $id, Two_Factor_Totp::SECRET_NETWORK_META_KEY, true )",
+        "'meta_key' => Two_Factor_Totp::SECRET_META_KEY,",
+        "return \"_two_factor_{$slug}_key_network\";"
+      ]
+    },
+    {
+      "id": "no-debug-output-in-secret-handling-files",
+      "description": "No error_log/var_dump/print_r/var_export in files that hold revealed secrets; a revealed value must never reach a log.",
+      "paths": ["class-two-factor-secrets.php", "providers/class-two-factor-totp.php", "CLI/"],
+      "pattern": "\\b(?:error_log|var_dump|print_r|var_export|debug_print_backtrace|wp_debug_log)\\s*\\(",
+      "shouldMatch": [
+        "error_log( $secret );",
+        "var_dump($key);",
+        "print_r( $state, true )"
+      ],
+      "shouldNotMatch": [
+        "WP_CLI::log( 'Migrated user' );",
+        "// never error_log a secret",
+        "WP_CLI::warning( sprintf( 'User %d: %s', $id, $code ) );"
+      ]
+    },
+    {
+      "id": "i18n-text-domain",
+      "description": "Every translatable string uses the two-factor text domain and never omits it.",
+      "paths": ["class-two-factor-secrets.php", "class-two-factor-core.php", "two-factor.php", "providers/", "settings/", "CLI/"],
+      "pattern": "\\b(?:__|_e|esc_html__|esc_html_e|esc_attr__|esc_attr_e)\\(\\s*'(?:[^'\\\\]|\\\\.)*'\\s*,\\s*'(?!two-factor')|\\b(?:_x|_ex|esc_html_x|esc_attr_x)\\(\\s*'(?:[^'\\\\]|\\\\.)*'\\s*,\\s*'(?:[^'\\\\]|\\\\.)*'\\s*,\\s*'(?!two-factor')|\\b(?:__|_e|esc_html__|esc_html_e|esc_attr__|esc_attr_e)\\(\\s*'(?:[^'\\\\]|\\\\.)*'\\s*\\)",
+      "shouldMatch": [
+        "__( 'Hello', 'default' )",
+        "esc_html_e( 'Hi' );",
+        "_x( 'Label', 'context', 'secrets-api' )",
+        "return __( 'Missing domain' );"
+      ],
+      "shouldNotMatch": [
+        "__( 'Hello', 'two-factor' )",
+        "_x( 'Authenticator App', 'Provider Label', 'two-factor' )",
+        "esc_html_e( 'It\\'s fine', 'two-factor' );",
+        "esc_html__( 'Use %s', 'two-factor' ),"
+      ]
+    },
+    {
+      "id": "no-requires-bump",
+      "description": "Requires at least stays at 7.0; the Secrets API is never a hard dependency.",
+      "paths": ["two-factor.php"],
+      "pattern": "Requires at least:\\s*(?!7\\.0\\b)\\S",
+      "shouldMatch": [
+        " * Requires at least: 7.2",
+        "Requires at least: 7.1"
+      ],
+      "shouldNotMatch": [
+        " * Requires at least: 7.0"
+      ]
+    },
+    {
+      "id": "no-secrets-api-package-dependency",
+      "description": "No composer or npm dependency on the Secrets API feature plugin (it is only mapped into the wp-env tests environment).",
+      "paths": ["composer.json", "package.json"],
+      "pattern": "secrets-api",
+      "shouldMatch": [
+        "\"ericmann/secrets-api\": \"^0.2\""
+      ],
+      "shouldNotMatch": [
+        "\"php-stubs/wp-cli-stubs\": \"dev-master\""
+      ]
+    },
+    {
+      "id": "no-plaintext-in-secret-hooks",
+      "description": "The two_factor_secret* actions and filters never receive a plaintext or revealed value (line-based; the reviewer also reads multi-line calls).",
+      "paths": ["class-two-factor-secrets.php", "providers/class-two-factor-totp.php", "CLI/"],
+      "pattern": "(?:do_action|apply_filters)\\(\\s*'two_factor_secret[^']*'[^;]*\\$(?:plaintext|secret|key|value|revealed|readback|state)\\b",
+      "shouldMatch": [
+        "do_action( 'two_factor_secrets_migrated', $user_id, $slug, $plaintext );",
+        "do_action( 'two_factor_secret_unavailable', $user_id, $slug, $error, $key );",
+        "apply_filters( 'two_factor_secrets_api_present', $present, $secret );"
+      ],
+      "shouldNotMatch": [
+        "do_action( 'two_factor_secrets_migrated', $user_id, $slug );",
+        "do_action( 'two_factor_secret_unavailable', (int) $user_id, self::SECRET_SLUG, $error );",
+        "apply_filters( 'two_factor_use_secrets_api', true, (int) $user_id )"
+      ]
+    },
+    {
+      "id": "cli-batch-size-via-constant",
+      "description": "The migrate/export batch size default comes from Two_Factor_CLI_Command::SECRETS_DEFAULT_BATCH_SIZE, never a literal.",
+      "paths": ["CLI/"],
+      "pattern": "get_flag_value\\([^)]*'batch-size'\\s*,\\s*['\"]?\\d+",
+      "shouldMatch": [
+        "get_flag_value( $assoc_args, 'batch-size', 100 )",
+        "get_flag_value( $assoc_args, 'batch-size', '100' )"
+      ],
+      "shouldNotMatch": [
+        "get_flag_value( $assoc_args, 'batch-size', self::SECRETS_DEFAULT_BATCH_SIZE )",
+        "get_flag_value( $assoc_args, 'batch-size', (string) self::SECRETS_DEFAULT_BATCH_SIZE )"
+      ]
+    },
+    {
+      "id": "affected-users-cache-ttl-via-constant",
+      "description": "The affected-users transient TTL comes from Two_Factor_Totp::AFFECTED_USERS_CACHE_TTL, never a literal or inline MINUTE_IN_SECONDS expression.",
+      "paths": ["providers/"],
+      "pattern": "set_(?:site_)?transient\\(.*,\\s*(?:\\d+|\\d+\\s*\\*\\s*[A-Z_]+_IN_SECONDS|[A-Z_]+_IN_SECONDS(?:\\s*\\*\\s*\\d+)?)\\s*\\)",
+      "shouldMatch": [
+        "set_site_transient( self::AFFECTED_USERS_TRANSIENT, 'yes', 300 );",
+        "set_site_transient( $k, $v, 5 * MINUTE_IN_SECONDS );",
+        "set_transient( $k, $v, MINUTE_IN_SECONDS );"
+      ],
+      "shouldNotMatch": [
+        "set_site_transient( self::AFFECTED_USERS_TRANSIENT, 'yes', self::AFFECTED_USERS_CACHE_TTL );",
+        "delete_site_transient( self::AFFECTED_USERS_TRANSIENT );"
+      ]
+    }
+  ]
+}

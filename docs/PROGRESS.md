@@ -1,0 +1,29 @@
+# Two-Factor Secrets API (TOTP) build progress
+Branch: (set by implement)
+Started: (set by implement)
+
+## Tasks
+- [ ] P0-01 Create the build branch and load the Secrets API feature plugin in the tests environment
+- [ ] P0-02 PHPStan stubs for the Secrets API and PHPUnit exclusion of the stub directory
+- [ ] P0-03 Push Phase 0 and record the manual environment check
+- [ ] P1-01 `Two_Factor_Secrets` adapter with tests and the shared secrets test case
+- [ ] P1-02 Provider base hooks and fail-closed handling of enrolled-but-unavailable providers in core
+- [ ] P1-03 Push Phase 1 and record the manual check
+- [ ] P2-01 TOTP tri-state read, Secrets API writes and lazy migration
+- [ ] P2-02 Fail-closed validation, login prompt, profile UI and the login lockout regression
+- [ ] P2-03 User deletion hooks and uninstall cleanup of Secrets API entries
+- [ ] P2-04 Push Phase 2 and record the manual check
+- [ ] P3-01 Affected-user detection and the administrator notice
+- [ ] P3-02 Site Health test `two_factor_totp_secret_storage`
+- [ ] P3-03 Push Phase 3 and record the manual check
+- [ ] P4-01 `wp two-factor status` storage field and `wp two-factor secrets status`
+- [ ] P4-02 `wp two-factor secrets migrate`
+- [ ] P4-03 `wp two-factor secrets export`
+- [ ] P4-04 Push Phase 4 and record the manual check
+- [ ] P5-01 readme.txt, readme.md and CHANGELOG.md
+- [ ] P5-02 AGENTS.md, TESTS.md and docblock audit
+- [ ] P5-03 Upstream PR description
+- [ ] P5-04 Push Phase 5 and record the final manual check
+
+## Log
+(one entry per task, appended by implement)
