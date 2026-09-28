@@ -24,6 +24,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P5-02 AGENTS.md, TESTS.md and docblock audit
 - [x] P5-03 Upstream PR description
 - [x] P5-04 Push Phase 5 and record the final manual check
+- [ ] R1-01 Correct the lockout and decommissioning documentation for Secrets API storage, with behaviour-pinning tests
 
 ## Log
 (one entry per task, appended by implement)
