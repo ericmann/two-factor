@@ -472,4 +472,245 @@ class Two_Factor_Totp_Secrets_Tests extends Two_Factor_Secrets_UnitTestCase {
 			restore_current_blog();
 		}
 	}
+
+	/**
+	 * Record calls to the unavailable action.
+	 *
+	 * @return void
+	 */
+	private function record_unavailable() {
+		add_action(
+			'two_factor_secret_unavailable',
+			function () {
+				$this->calls[] = array_merge( array( 'unavailable' ), func_get_args() );
+			},
+			10,
+			3
+		);
+	}
+
+	/**
+	 * Make the stored secret unreadable with a decryption error.
+	 *
+	 * @return void
+	 */
+	private function make_unreadable() {
+		Two_Factor_Secrets::$test_overrides['get'] = function () {
+			return new WP_Error( 'secret_decryption_failed', 'sensitive detail' );
+		};
+	}
+
+	/**
+	 * Capture output of a callback.
+	 *
+	 * @param callable $callback Callback.
+	 * @return string
+	 */
+	private function capture( $callback ) {
+		ob_start();
+		$callback();
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Unreadable secrets fail validation.
+	 */
+	public function test_validate_code_fails_when_secret_unreadable() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$key     = Two_Factor_Totp::generate_key();
+		$this->provider->set_user_totp_key( $user_id, $key );
+		$this->make_unreadable();
+		$this->record_unavailable();
+
+		$this->assertFalse( $this->provider->validate_code_for_user( get_userdata( $user_id ), Two_Factor_Totp::calc_totp( $key ) ) );
+		$this->assertSame( 1, $this->count_calls( 'unavailable' ) );
+		$this->assertSame( $user_id, $this->calls[0][1] );
+		$this->assertSame( 'totp', $this->calls[0][2] );
+		$this->assertInstanceOf( WP_Error::class, $this->calls[0][3] );
+	}
+
+	/**
+	 * No secret fails validation.
+	 */
+	public function test_validate_code_fails_when_secret_absent() {
+		$user_id = $this->user();
+
+		$this->assertFalse( $this->provider->validate_code_for_user( get_userdata( $user_id ), '123456' ) );
+	}
+
+	/**
+	 * A Secrets API key validates.
+	 */
+	public function test_validate_code_succeeds_from_secrets_api() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$key     = Two_Factor_Totp::generate_key();
+		$this->provider->set_user_totp_key( $user_id, $key );
+
+		$this->assertTrue( $this->provider->validate_code_for_user( get_userdata( $user_id ), Two_Factor_Totp::calc_totp( $key ) ) );
+	}
+
+	/**
+	 * A marker without the API fails validation.
+	 */
+	public function test_validate_authentication_fails_when_api_absent_with_marker() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$key     = Two_Factor_Totp::generate_key();
+		$this->provider->set_user_totp_key( $user_id, $key );
+		$this->simulate_api_absent();
+		$_POST['authcode'] = Two_Factor_Totp::calc_totp( $key );
+
+		try {
+			$this->assertFalse( $this->provider->validate_authentication( get_userdata( $user_id ) ) );
+		} finally {
+			unset( $_POST['authcode'] );
+		}
+	}
+
+	/**
+	 * The login prompt explains the problem.
+	 */
+	public function test_authentication_page_shows_unavailable_message() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, Two_Factor_Totp::generate_key() );
+		$this->make_unreadable();
+		$this->record_unavailable();
+		$user = get_userdata( $user_id );
+
+		$html = $this->capture(
+			function () use ( $user ) {
+				$this->provider->authentication_page( $user );
+			}
+		);
+
+		$this->assertStringContainsString( 'currently unavailable on this site', $html );
+		$this->assertStringNotContainsString( 'name="authcode"', $html );
+		$this->assertStringNotContainsString( 'secret_decryption_failed', $html );
+		$this->assertStringNotContainsString( 'sensitive detail', $html );
+		$this->assertSame( 1, $this->count_calls( 'unavailable' ) );
+	}
+
+	/**
+	 * The login prompt is normal when the secret is readable.
+	 */
+	public function test_authentication_page_normal_when_readable() {
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, Two_Factor_Totp::generate_key() );
+		$this->record_unavailable();
+		$user = get_userdata( $user_id );
+
+		$html = $this->capture(
+			function () use ( $user ) {
+				$this->provider->authentication_page( $user );
+			}
+		);
+
+		$this->assertStringContainsString( 'name="authcode"', $html );
+		$this->assertStringNotContainsString( 'currently unavailable', $html );
+		$this->assertSame( 0, $this->count_calls( 'unavailable' ) );
+	}
+
+	/**
+	 * The profile offers a reset, not setup, for an unreadable secret.
+	 */
+	public function test_user_options_shows_reset_not_setup_when_unreadable() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, Two_Factor_Totp::generate_key() );
+		$this->make_unreadable();
+		$this->record_unavailable();
+		$user = get_userdata( $user_id );
+
+		$html = $this->capture(
+			function () use ( $user ) {
+				$this->provider->user_two_factor_options( $user );
+			}
+		);
+
+		$this->assertStringContainsString( 'Reset authenticator app', $html );
+		$this->assertStringContainsString( 'cannot be read', $html );
+		$this->assertStringNotContainsString( 'Authentication Code:', $html );
+		$this->assertStringNotContainsString( 'two-factor-totp-key', $html );
+		$this->assertSame( 1, $this->count_calls( 'unavailable' ) );
+	}
+
+	/**
+	 * The profile offers setup when there is no secret.
+	 */
+	public function test_user_options_shows_setup_when_null() {
+		$user = get_userdata( $this->user() );
+
+		$html = $this->capture(
+			function () use ( $user ) {
+				$this->provider->user_two_factor_options( $user );
+			}
+		);
+
+		$this->assertStringContainsString( 'Authentication Code:', $html );
+		$this->assertStringContainsString( 'two-factor-totp-key', $html );
+	}
+
+	/**
+	 * An affected TOTP-only user is forced onto the fallback, never single factor.
+	 */
+	public function test_login_fails_closed_for_affected_totp_only_user() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, Two_Factor_Totp::generate_key() );
+		update_user_meta( $user_id, Two_Factor_Core::ENABLED_PROVIDERS_USER_META_KEY, array( 'Two_Factor_Totp' ) );
+		$this->simulate_api_absent();
+		$user = get_userdata( $user_id );
+
+		$this->assertFalse( $this->provider->is_available_for_user( $user ) );
+
+		try {
+			$available = Two_Factor_Core::get_available_providers_for_user( $user_id );
+
+			$this->assertIsArray( $available );
+			$this->assertSame( array( 'Two_Factor_Email' ), array_keys( $available ) );
+			$this->assertTrue( Two_Factor_Core::is_user_using_two_factor( $user_id ) );
+			$this->assertSame( $user, Two_Factor_Core::filter_authenticate( $user ) );
+			$this->assertNotFalse( has_filter( 'send_auth_cookies', '__return_false' ) );
+		} finally {
+			remove_filter( 'send_auth_cookies', '__return_false', PHP_INT_MAX );
+		}
+	}
+
+	/**
+	 * Without a valid fallback the user is locked out, not let in.
+	 */
+	public function test_login_fails_closed_for_affected_totp_only_user_without_fallback() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, Two_Factor_Totp::generate_key() );
+		update_user_meta( $user_id, Two_Factor_Core::ENABLED_PROVIDERS_USER_META_KEY, array( 'Two_Factor_Totp' ) );
+		$this->simulate_api_absent();
+		add_filter(
+			'two_factor_fallback_provider_for_user',
+			function () {
+				return 'Two_Factor_Nonexistent';
+			}
+		);
+
+		$this->assertWPError( Two_Factor_Core::get_available_providers_for_user( $user_id ) );
+		$this->assertTrue( Two_Factor_Core::is_user_using_two_factor( $user_id ) );
+	}
+
+	/**
+	 * Backup codes remain usable for an affected user.
+	 */
+	public function test_affected_user_keeps_backup_codes() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$user    = get_userdata( $user_id );
+		$this->provider->set_user_totp_key( $user_id, Two_Factor_Totp::generate_key() );
+		Two_Factor_Backup_Codes::get_instance()->generate_codes( $user );
+		update_user_meta( $user_id, Two_Factor_Core::ENABLED_PROVIDERS_USER_META_KEY, array( 'Two_Factor_Totp', 'Two_Factor_Backup_Codes' ) );
+		$this->simulate_api_absent();
+
+		$this->assertSame( array( 'Two_Factor_Backup_Codes' ), array_keys( Two_Factor_Core::get_available_providers_for_user( $user_id ) ) );
+	}
 }
