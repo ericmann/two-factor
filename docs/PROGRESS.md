@@ -12,7 +12,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P2-01 TOTP tri-state read, Secrets API writes and lazy migration
 - [x] P2-02 Fail-closed validation, login prompt, profile UI and the login lockout regression
 - [x] P2-03 User deletion hooks and uninstall cleanup of Secrets API entries
-- [ ] P2-04 Push Phase 2 and record the manual check
+- [x] P2-04 Push Phase 2 and record the manual check
 - [ ] P3-01 Affected-user detection and the administrator notice
 - [ ] P3-02 Site Health test `two_factor_totp_secret_storage`
 - [ ] P3-03 Push Phase 3 and record the manual check
@@ -60,3 +60,6 @@ Interpretation: unavailable prompt renders the two prompt actions and the unavai
 ### P2-03 — ec6277d
 Deletion hook (wpmu_delete_user on multisite, delete_user otherwise) and Two_Factor_Totp::uninstall_user_data (paged WP_User_Query on the marker meta, offset 0, seen-ID guard); uninstall() docblock notes orphaned secrets. 7 tests (6 in Two_Factor_Totp_Secrets_Tests, 1 in core). 374 tests both suites; skips are the single-site/multisite-only tests.
 Interpretation: hooks call new void wrapper delete_user_secrets_on_user_deletion() instead of delete_user_totp_key() directly because PHPStan level 5 rejects bool-returning action callbacks; the constructor test asserts the wrapper.
+
+### P2-04 — 04e6053
+Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human): with feature plugin on dev site (a) enrol app, confirm _wp_network_secret_two-factor/totp-<id> option exists and _two_factor_totp_key meta empty; (b) log in with an app code; (c) deactivate plugin, login offers only other methods; after re-activation with WP_SECRETS_KEY changed profile shows reset notice; (d) delete user, option row gone.
