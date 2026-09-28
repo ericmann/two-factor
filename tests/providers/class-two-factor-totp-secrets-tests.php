@@ -812,4 +812,163 @@ class Two_Factor_Totp_Secrets_Tests extends Two_Factor_Secrets_UnitTestCase {
 
 		$this->assertSame( (string) get_current_network_id(), $this->marker( $user_id ) );
 	}
+
+	/**
+	 * Seed a marker for a fresh user.
+	 *
+	 * @param string|null $network Marker value; defaults to the current network.
+	 * @return int User ID.
+	 */
+	private function seed_marker( $network = null ) {
+		$user_id = $this->user();
+		update_user_meta( $user_id, Two_Factor_Totp::SECRET_NETWORK_META_KEY, null === $network ? (string) get_current_network_id() : $network );
+		Two_Factor_Totp::clear_affected_users_cache();
+
+		return $user_id;
+	}
+
+	/**
+	 * No markers means no affected users.
+	 */
+	public function test_has_affected_users_false_without_markers() {
+		$this->assertFalse( Two_Factor_Totp::has_affected_users() );
+	}
+
+	/**
+	 * A marker with no API affects users.
+	 */
+	public function test_has_affected_users_true_when_api_absent_with_marker() {
+		$this->seed_marker();
+		$this->simulate_api_absent();
+
+		$this->assertTrue( Two_Factor_Totp::has_affected_users() );
+	}
+
+	/**
+	 * A marker for another network affects users.
+	 */
+	public function test_has_affected_users_true_for_other_network_marker() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Multisite only.' );
+		}
+		$this->require_secrets_api();
+		$this->seed_marker( (string) ( get_current_network_id() + 1 ) );
+
+		$this->assertTrue( Two_Factor_Totp::has_affected_users() );
+	}
+
+	/**
+	 * The result is cached.
+	 */
+	public function test_has_affected_users_is_cached() {
+		$this->simulate_api_absent();
+		Two_Factor_Totp::clear_affected_users_cache();
+
+		$this->assertFalse( Two_Factor_Totp::has_affected_users() );
+
+		$user_id = $this->user();
+		update_user_meta( $user_id, Two_Factor_Totp::SECRET_NETWORK_META_KEY, (string) get_current_network_id() );
+
+		$this->assertFalse( Two_Factor_Totp::has_affected_users() );
+
+		Two_Factor_Totp::clear_affected_users_cache();
+
+		$this->assertTrue( Two_Factor_Totp::has_affected_users() );
+	}
+
+	/**
+	 * Administrators see the notice.
+	 */
+	public function test_admin_notice_shown_to_manage_options_user() {
+		$this->seed_marker();
+		$this->simulate_api_absent();
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		if ( is_multisite() ) {
+			grant_super_admin( get_current_user_id() );
+		}
+
+		$html = $this->capture(
+			function () {
+				$this->provider->admin_notice_secrets_api_missing();
+			}
+		);
+
+		$this->assertStringContainsString( 'wp two-factor secrets export', $html );
+		$this->assertStringContainsString( 'wp two-factor secrets migrate', $html );
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringNotContainsString( 'is-dismissible', $html );
+	}
+
+	/**
+	 * Others do not.
+	 */
+	public function test_admin_notice_hidden_without_capability() {
+		$this->seed_marker();
+		$this->simulate_api_absent();
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+
+		$this->assertSame(
+			'',
+			$this->capture(
+				function () {
+					$this->provider->admin_notice_secrets_api_missing();
+				}
+			)
+		);
+	}
+
+	/**
+	 * No notice without affected users.
+	 */
+	public function test_admin_notice_hidden_when_no_affected_users() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		if ( is_multisite() ) {
+			grant_super_admin( get_current_user_id() );
+		}
+
+		$this->assertSame(
+			'',
+			$this->capture(
+				function () {
+					$this->provider->admin_notice_secrets_api_missing();
+				}
+			)
+		);
+	}
+
+	/**
+	 * The network admin notice needs manage_network_options.
+	 */
+	public function test_admin_notice_network_admin_requires_manage_network_options() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Multisite only.' );
+		}
+		$this->seed_marker();
+		$this->simulate_api_absent();
+		set_current_screen( 'dashboard-network' );
+
+		try {
+			wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+			$this->assertSame(
+				'',
+				$this->capture(
+					function () {
+						$this->provider->admin_notice_secrets_api_missing();
+					}
+				)
+			);
+
+			grant_super_admin( get_current_user_id() );
+			$this->assertStringContainsString(
+				'wp two-factor secrets export',
+				$this->capture(
+					function () {
+						$this->provider->admin_notice_secrets_api_missing();
+					}
+				)
+			);
+		} finally {
+			set_current_screen( 'front' );
+		}
+	}
 }

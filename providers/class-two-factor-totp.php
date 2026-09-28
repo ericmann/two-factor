@@ -38,6 +38,24 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	const SECRET_SLUG = 'totp';
 
 	/**
+	 * The site transient caching whether any user has a secret that is currently unreachable.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @var string
+	 */
+	const AFFECTED_USERS_TRANSIENT = 'two_factor_totp_affected_users';
+
+	/**
+	 * How long, in seconds, the affected-users result is cached.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @var int
+	 */
+	const AFFECTED_USERS_CACHE_TTL = 300;
+
+	/**
 	 * The user meta key for the last successful TOTP token timestamp logged in with.
 	 *
 	 * @var string
@@ -69,6 +87,9 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'two_factor_user_options_' . __CLASS__, array( $this, 'user_two_factor_options' ) );
+
+		add_action( 'admin_notices', array( $this, 'admin_notice_secrets_api_missing' ) );
+		add_action( 'network_admin_notices', array( $this, 'admin_notice_secrets_api_missing' ) );
 
 		// On multisite, `delete_user` also fires when a user is only removed from one site, so wait for the network-level deletion.
 		if ( is_multisite() ) {
@@ -594,6 +615,7 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 
 		delete_user_meta( $user_id, self::SECRET_META_KEY );
 		Two_Factor_Secrets::memzero( $readback );
+		self::clear_affected_users_cache();
 
 		/**
 		 * Fires after a user's TOTP secret was moved into the Secrets API.
@@ -666,6 +688,7 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 
 			Two_Factor_Secrets::memzero( $readback );
 			delete_user_meta( $user_id, self::SECRET_META_KEY );
+			self::clear_affected_users_cache();
 
 			return true;
 		}
@@ -674,6 +697,7 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 
 		// Clear any stale marker or secret so the plaintext value is unambiguous.
 		Two_Factor_Secrets::delete_user_secret( $user_id, self::SECRET_SLUG );
+		self::clear_affected_users_cache();
 
 		return $result;
 	}
@@ -692,6 +716,7 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 		delete_user_meta( $user_id, self::SECRET_META_KEY );
 
 		$secret = Two_Factor_Secrets::delete_user_secret( $user_id, self::SECRET_SLUG );
+		self::clear_affected_users_cache();
 
 		return true === $secret
 			&& '' === (string) get_user_meta( $user_id, self::SECRET_META_KEY, true )
@@ -711,6 +736,87 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	 */
 	public function delete_user_secrets_on_user_deletion( $user_id ) {
 		$this->delete_user_totp_key( $user_id );
+	}
+
+	/**
+	 * Whether any user has a secret in the Secrets API that this site cannot currently reach.
+	 *
+	 * The result is cached briefly in a site transient.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @return bool
+	 */
+	public static function has_affected_users() {
+		$cached = get_site_transient( self::AFFECTED_USERS_TRANSIENT );
+
+		if ( 'yes' === $cached || 'no' === $cached ) {
+			return 'yes' === $cached;
+		}
+
+		$args = array(
+			'blog_id'      => 0,
+			'meta_key'     => self::SECRET_NETWORK_META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Single-row lookup, result cached.
+			'meta_compare' => 'EXISTS',
+			'number'       => 1,
+			'fields'       => 'ID',
+			'count_total'  => false,
+		);
+
+		if ( Two_Factor_Secrets::is_api_present() ) {
+			if ( is_multisite() ) {
+				$args['meta_value']   = (string) get_current_network_id(); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Single-row lookup, result cached.
+				$args['meta_compare'] = '!=';
+				$affected             = ! empty( get_users( $args ) );
+			} else {
+				$affected = false;
+			}
+		} else {
+			$affected = ! empty( get_users( $args ) );
+		}
+
+		set_site_transient( self::AFFECTED_USERS_TRANSIENT, $affected ? 'yes' : 'no', self::AFFECTED_USERS_CACHE_TTL );
+
+		return $affected;
+	}
+
+	/**
+	 * Forget the cached affected-users result.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @return void
+	 */
+	public static function clear_affected_users_cache() {
+		delete_site_transient( self::AFFECTED_USERS_TRANSIENT );
+	}
+
+	/**
+	 * Warn administrators that some users' authenticator secrets are unreachable.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @return void
+	 */
+	public function admin_notice_secrets_api_missing() {
+		$capability = is_network_admin() ? 'manage_network_options' : 'manage_options';
+
+		if ( ! current_user_can( $capability ) || ! self::has_affected_users() ) {
+			return;
+		}
+
+		wp_admin_notice(
+			sprintf(
+				/* translators: 1: WP-CLI export command, 2: WP-CLI migrate command. */
+				esc_html__( 'Authenticator app secrets for one or more users were stored with the WordPress Secrets API, which is no longer available on this site. Those users cannot use their authenticator app until it is restored. Re-activate the Secrets API, or run %1$s before removing it and %2$s after restoring it.', 'two-factor' ),
+				'<code>wp two-factor secrets export</code>',
+				'<code>wp two-factor secrets migrate</code>'
+			),
+			array(
+				'type'        => 'error',
+				'dismissible' => false,
+			)
+		);
 	}
 
 	/**
