@@ -16,7 +16,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P3-01 Affected-user detection and the administrator notice
 - [x] P3-02 Site Health test `two_factor_totp_secret_storage`
 - [x] P3-03 Push Phase 3 and record the manual check
-- [ ] P4-01 `wp two-factor status` storage field and `wp two-factor secrets status`
+- [x] P4-01 `wp two-factor status` storage field and `wp two-factor secrets status`
 - [ ] P4-02 `wp two-factor secrets migrate`
 - [ ] P4-03 `wp two-factor secrets export`
 - [ ] P4-04 Push Phase 4 and record the manual check
@@ -73,3 +73,7 @@ Interpretation: API present + no plaintext users is 'good' naming the provider l
 
 ### P3-03 — 8eea02d
 Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human): (a) migrated user + feature plugin deactivated: red non-dismissible notice on Dashboard for admin, not for editor; (b) Site Health critical, then recommended (re-activated, second user plaintext), then good after migrating; (c) multisite: notice in Network Admin for super admin.
+
+### P4-01 — 60c5017
+status now has totp_storage (last field); new secrets() dispatcher with status action (migrate/export cases left for P4-02/P4-03; default branch errors 'Unknown action ... <status|migrate|export>'); Two_Factor_Totp::count_users_by_storage(). 9 CLI tests; 397 tests both suites.
+Interpretation: Two_Factor_Secrets::provider_label() returns '' whenever is_api_present() is false (so the test seam is honoured). secrets_status booleans are emitted as 'true'/'false' strings; counts as ints.
