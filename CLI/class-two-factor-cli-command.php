@@ -767,7 +767,10 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 	 *     # Preview the migration
 	 *     $ wp two-factor secrets migrate --dry-run
 	 *
-	 *     # Move all secrets back into user meta before removing the Secrets API
+	 *     # Move all secrets back into user meta before removing the Secrets API.
+	 *     # Opt out of the Secrets API first (return false from the
+	 *     # two_factor_use_secrets_api filter), otherwise reads migrate the
+	 *     # secrets straight back. Deactivate the Secrets API afterwards.
 	 *     $ wp two-factor secrets export --yes
 	 *
 	 * @since 0.18.0

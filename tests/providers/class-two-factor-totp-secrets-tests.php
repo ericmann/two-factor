@@ -284,6 +284,46 @@ class Two_Factor_Totp_Secrets_Tests extends Two_Factor_Secrets_UnitTestCase {
 	}
 
 	/**
+	 * An unreadable secret with the API present keeps TOTP enrolled and does not force the fallback.
+	 */
+	public function test_unreadable_secret_with_api_present_keeps_totp_and_does_not_force_fallback() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$key     = Two_Factor_Totp::generate_key();
+		$this->provider->set_user_totp_key( $user_id, $key );
+		update_user_meta( $user_id, Two_Factor_Core::ENABLED_PROVIDERS_USER_META_KEY, array( 'Two_Factor_Totp' ) );
+		$this->make_unreadable();
+		$user = get_userdata( $user_id );
+
+		$this->assertTrue( $this->provider->is_available_for_user( $user ) );
+		$this->assertFalse( $this->provider->is_enrolled_but_unavailable_for_user( $user ) );
+		$this->assertSame( array( 'Two_Factor_Totp' ), array_keys( Two_Factor_Core::get_available_providers_for_user( $user_id ) ) );
+		$this->assertTrue( Two_Factor_Core::is_user_using_two_factor( $user_id ) );
+		$this->assertFalse( $this->provider->validate_code_for_user( $user, Two_Factor_Totp::calc_totp( $key ) ) );
+	}
+
+	/**
+	 * Export is undone by lazy migration unless the filter opts out first.
+	 */
+	public function test_exported_secret_is_remigrated_on_read_unless_filter_opts_out() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+
+		$this->assertTrue( $this->provider->export_user_totp_key( $user_id ) );
+		$this->assertSame( 'ABCDEFGH', $this->plaintext( $user_id ) );
+		$this->assertSame( 'ABCDEFGH', $this->provider->get_user_totp_key( $user_id ) );
+		$this->assertSame( '', $this->plaintext( $user_id ) );
+		$this->assertSame( (string) get_current_network_id(), $this->marker( $user_id ) );
+
+		add_filter( 'two_factor_use_secrets_api', '__return_false' );
+		$this->assertTrue( $this->provider->export_user_totp_key( $user_id ) );
+		$this->assertSame( 'ABCDEFGH', $this->provider->get_user_totp_key( $user_id ) );
+		$this->assertSame( 'ABCDEFGH', $this->plaintext( $user_id ) );
+		$this->assertSame( '', $this->marker( $user_id ) );
+	}
+
+	/**
 	 * Plaintext wins over a marker.
 	 */
 	public function test_plaintext_beats_marker() {

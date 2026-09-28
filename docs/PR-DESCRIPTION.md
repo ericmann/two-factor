@@ -19,7 +19,8 @@ The WordPress Secrets API removes that burden. It is tracked in Trac #66187 (mil
 - **Fail closed.**
   - An unreadable secret never authenticates and is never treated as "not configured" or re-enrolled silently.
   - The login prompt explains that the authenticator app is unavailable and offers no code field.
-  - A user whose only enrolled method is the unavailable TOTP is forced onto the fallback provider (email by default, filterable), or locked out with a `no_available_2fa_methods` error if no valid fallback exists. They are never let in with one factor.
+  - When the Secrets API is missing, or the marker names another network, a user whose only enrolled method is the unavailable TOTP is forced onto the fallback provider (email by default, filterable), or locked out with a `no_available_2fa_methods` error if no valid fallback exists. They are never let in with one factor.
+  - When the Secrets API is present but the secret cannot be decrypted (salt rotation without `WP_SECRETS_KEY`, or a missing secret row), TOTP stays available and is not replaced by the fallback. The user cannot authenticate and is locked out until an administrator resets them.
   - Users with backup codes keep using them.
 - **Hooks.**
   - `two_factor_use_secrets_api` filter: opt out of writes and migration. Already-migrated users are still read from the Secrets API while it is present.
@@ -33,7 +34,7 @@ The WordPress Secrets API removes that burden. It is tracked in Trac #66187 (mil
 - **Bulk.** `wp two-factor secrets migrate [--user=<user>] [--batch-size=<n>] [--dry-run]` uses the same code path in bounded batches.
 - **Status.** `wp two-factor secrets status` and a `totp_storage` field on `wp two-factor status <user>` (`plaintext`, `secrets-api`, `unavailable`, `none`).
 - **If the Secrets API goes away.** Affected users cannot use their authenticator app. Administrators see a non-dismissible notice (Dashboard and Network Admin, `manage_options` / `manage_network_options` only) and a critical Site Health result, `two_factor_totp_secret_storage`. Detection is a cheap single-row query cached in a site transient.
-- **Export.** `wp two-factor secrets export [--user=<user>] [--batch-size=<n>] [--yes]` moves secrets back into user meta (with confirmation) before the API is removed.
+- **Export.** `wp two-factor secrets export [--user=<user>] [--batch-size=<n>] [--yes]` moves secrets back into user meta (with confirmation) before the API is removed. While the API is active and `two_factor_use_secrets_api` allows writes, lazy migration moves exported secrets back on the next read. To decommission: return false from `two_factor_use_secrets_api`, run export, then deactivate the Secrets API.
 - **Cleanup.** Deleting a user removes their secret and marker (`wpmu_delete_user` on multisite, so removal from a single site does not delete a network secret). Uninstall removes every secret while the API is available. Secrets left in the store when the API is absent at uninstall are orphaned; there is nothing to reach them with.
 
 ## Compatibility
@@ -59,3 +60,4 @@ The WordPress Secrets API removes that burden. It is tracked in Trac #66187 (mil
 3. Naming the network-scope secrets `two-factor/totp-{ID}` puts one row per TOTP user in the options table. Is that acceptable on large networks, versus waiting for a user-scoped store in the Secrets API?
 4. `Two_Factor_Provider::is_enrolled_but_unavailable_for_user()` is a generic core hook that lets any provider say "enrolled, but currently unusable", so core forces the fallback instead of failing open. Is that the right name and shape for a core-level concept?
 5. `Two_Factor_Provider::uninstall_user_data()` is a bulk, static hook called once during uninstall for data held outside user meta. Would maintainers prefer a different name or a per-user shape?
+6. Should a secret that is unreadable while the Secrets API is present also force the fallback provider, as a missing API does? Today the user is locked out until an administrator resets them.
