@@ -11,7 +11,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P1-03 Push Phase 1 and record the manual check
 - [x] P2-01 TOTP tri-state read, Secrets API writes and lazy migration
 - [x] P2-02 Fail-closed validation, login prompt, profile UI and the login lockout regression
-- [ ] P2-03 User deletion hooks and uninstall cleanup of Secrets API entries
+- [x] P2-03 User deletion hooks and uninstall cleanup of Secrets API entries
 - [ ] P2-04 Push Phase 2 and record the manual check
 - [ ] P3-01 Affected-user detection and the administrator notice
 - [ ] P3-02 Site Health test `two_factor_totp_secret_storage`
@@ -56,3 +56,7 @@ Note: delete_user_totp_key now returns true only when plaintext, marker and secr
 ### P2-02 — f346ba4
 validate_code_for_user, authentication_page and user_two_factor_options now use get_user_totp_key_state; private report_unavailable fires two_factor_secret_unavailable(user_id,'totp',WP_Error). 11 tests appended to tests/providers/class-two-factor-totp-secrets-tests.php incl. login lockout regression (affected TOTP-only user gets Email fallback / WP_Error, send_auth_cookies still blocked; backup codes retained). 367 tests both suites.
 Interpretation: unavailable prompt renders the two prompt actions and the unavailable message but omits the generic 'Enter the code' line; test class named Two_Factor_Totp_Secrets_Tests.
+
+### P2-03 — ec6277d
+Deletion hook (wpmu_delete_user on multisite, delete_user otherwise) and Two_Factor_Totp::uninstall_user_data (paged WP_User_Query on the marker meta, offset 0, seen-ID guard); uninstall() docblock notes orphaned secrets. 7 tests (6 in Two_Factor_Totp_Secrets_Tests, 1 in core). 374 tests both suites; skips are the single-site/multisite-only tests.
+Interpretation: hooks call new void wrapper delete_user_secrets_on_user_deletion() instead of delete_user_totp_key() directly because PHPStan level 5 rejects bool-returning action callbacks; the constructor test asserts the wrapper.
