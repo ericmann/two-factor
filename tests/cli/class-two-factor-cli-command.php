@@ -354,6 +354,21 @@ class Tests_Two_Factor_CLI_Command extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Secrets status works when TOTP is disabled site-wide.
+	 */
+	public function test_secrets_status_works_when_totp_disabled_site_wide() {
+		update_option( Two_Factor_Core::ENABLED_PROVIDERS_OPTION_KEY, array( 'Two_Factor_Email' ) );
+
+		try {
+			$this->command->secrets( array( 'status' ), array() );
+		} finally {
+			delete_option( Two_Factor_Core::ENABLED_PROVIDERS_OPTION_KEY );
+		}
+
+		$this->assertArrayHasKey( 'plaintext_users', $this->last_format()['items'][0] );
+	}
+
+	/**
 	 * Secrets status reports an absent API.
 	 *
 	 * @covers Two_Factor_CLI_Command::secrets

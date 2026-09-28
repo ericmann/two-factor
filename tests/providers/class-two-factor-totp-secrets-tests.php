@@ -815,11 +815,42 @@ class Two_Factor_Totp_Secrets_Tests extends Two_Factor_Secrets_UnitTestCase {
 	/**
 	 * The right deletion hook is registered.
 	 */
-	public function test_constructor_registers_correct_deletion_hook() {
-		$callback = array( Two_Factor_Totp::get_instance(), 'delete_user_secrets_on_user_deletion' );
+	public function test_registers_correct_deletion_hook() {
+		$callback = array( 'Two_Factor_Totp', 'delete_user_secrets_on_user_deletion' );
 
 		$this->assertNotFalse( has_action( is_multisite() ? 'wpmu_delete_user' : 'delete_user', $callback ) );
 		$this->assertFalse( has_action( is_multisite() ? 'delete_user' : 'wpmu_delete_user', $callback ) );
+	}
+
+	/**
+	 * Lifecycle hooks stay registered, and still delete secrets, when TOTP is disabled site-wide.
+	 */
+	public function test_lifecycle_hooks_work_when_totp_disabled_site_wide() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+
+		update_option( Two_Factor_Core::ENABLED_PROVIDERS_OPTION_KEY, array( 'Two_Factor_Email' ) );
+
+		try {
+			$this->assertArrayNotHasKey( 'Two_Factor_Totp', Two_Factor_Core::get_providers() );
+
+			$this->assertNotFalse( has_filter( 'site_status_tests', array( 'Two_Factor_Totp', 'register_site_health_test' ) ) );
+			$this->assertNotFalse( has_action( 'admin_notices', array( 'Two_Factor_Totp', 'admin_notice_secrets_api_missing' ) ) );
+			$this->assertNotFalse( has_action( 'network_admin_notices', array( 'Two_Factor_Totp', 'admin_notice_secrets_api_missing' ) ) );
+
+			if ( is_multisite() ) {
+				require_once ABSPATH . 'wp-admin/includes/ms.php';
+				wpmu_delete_user( $user_id );
+			} else {
+				require_once ABSPATH . 'wp-admin/includes/user.php';
+				wp_delete_user( $user_id );
+			}
+
+			$this->assertNull( wp_get_network_secret( "two-factor/totp-{$user_id}" ) );
+		} finally {
+			delete_option( Two_Factor_Core::ENABLED_PROVIDERS_OPTION_KEY );
+		}
 	}
 
 	/**

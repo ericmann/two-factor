@@ -88,6 +88,8 @@ Each concrete provider registers its own hooks in its constructor:
 
 New providers should follow this pattern rather than registering hooks from outside the class.
 
+The one exception is data that outlives the provider being enabled. `Two_Factor_Totp::register_secret_lifecycle_hooks()` registers user-deletion cleanup, the unreachable-secrets admin notice and the Site Health test statically, and `two-factor.php` always loads the TOTP class and calls it, so these keep working when an admin turns TOTP off in Settings → Two-Factor.
+
 ### Key User Meta (constants on `Two_Factor_Core`)
 
 | Constant | Meta Key | Purpose |

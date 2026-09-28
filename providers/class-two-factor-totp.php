@@ -88,18 +88,33 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'two_factor_user_options_' . __CLASS__, array( $this, 'user_two_factor_options' ) );
 
-		add_filter( 'site_status_tests', array( $this, 'register_site_health_test' ) );
-		add_action( 'admin_notices', array( $this, 'admin_notice_secrets_api_missing' ) );
-		add_action( 'network_admin_notices', array( $this, 'admin_notice_secrets_api_missing' ) );
+		parent::__construct();
+	}
+
+	/**
+	 * Register the hooks that manage stored secrets for the lifetime of a user.
+	 *
+	 * These run whether or not TOTP is enabled on the site: a site that turns TOTP off
+	 * after users enrolled still holds their secrets, and must still delete them with
+	 * the user, warn about unreachable ones and report their storage in Site Health.
+	 * They are static so that registering them does not instantiate the provider,
+	 * which would expose its REST routes while it is disabled.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @return void
+	 */
+	public static function register_secret_lifecycle_hooks() {
+		add_filter( 'site_status_tests', array( __CLASS__, 'register_site_health_test' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'admin_notice_secrets_api_missing' ) );
+		add_action( 'network_admin_notices', array( __CLASS__, 'admin_notice_secrets_api_missing' ) );
 
 		// On multisite, `delete_user` also fires when a user is only removed from one site, so wait for the network-level deletion.
 		if ( is_multisite() ) {
-			add_action( 'wpmu_delete_user', array( $this, 'delete_user_secrets_on_user_deletion' ) );
+			add_action( 'wpmu_delete_user', array( __CLASS__, 'delete_user_secrets_on_user_deletion' ) );
 		} else {
-			add_action( 'delete_user', array( $this, 'delete_user_secrets_on_user_deletion' ) );
+			add_action( 'delete_user', array( __CLASS__, 'delete_user_secrets_on_user_deletion' ) );
 		}
-
-		parent::__construct();
 	}
 
 	/**
@@ -790,8 +805,8 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	 *
 	 * @return void
 	 */
-	public function delete_user_secrets_on_user_deletion( $user_id ) {
-		$this->delete_user_totp_key( $user_id );
+	public static function delete_user_secrets_on_user_deletion( $user_id ) {
+		self::get_instance()->delete_user_totp_key( $user_id );
 	}
 
 	/**
@@ -854,7 +869,7 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	 *
 	 * @return void
 	 */
-	public function admin_notice_secrets_api_missing() {
+	public static function admin_notice_secrets_api_missing() {
 		$capability = is_network_admin() ? 'manage_network_options' : 'manage_options';
 
 		if ( ! current_user_can( $capability ) || ! self::has_affected_users() ) {
@@ -884,10 +899,10 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	 *
 	 * @return array
 	 */
-	public function register_site_health_test( $tests ) {
+	public static function register_site_health_test( $tests ) {
 		$tests['direct']['two_factor_totp_secret_storage'] = array(
 			'label' => __( 'Authenticator app secret storage', 'two-factor' ),
-			'test'  => array( $this, 'site_health_secret_storage' ),
+			'test'  => array( __CLASS__, 'site_health_secret_storage' ),
 		);
 
 		return $tests;
@@ -925,7 +940,7 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	 *
 	 * @return array
 	 */
-	public function site_health_secret_storage() {
+	public static function site_health_secret_storage() {
 		$result = array(
 			'label'       => '',
 			'status'      => 'good',
