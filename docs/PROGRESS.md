@@ -21,7 +21,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P4-03 `wp two-factor secrets export`
 - [x] P4-04 Push Phase 4 and record the manual check
 - [x] P5-01 readme.txt, readme.md and CHANGELOG.md
-- [ ] P5-02 AGENTS.md, TESTS.md and docblock audit
+- [x] P5-02 AGENTS.md, TESTS.md and docblock audit
 - [ ] P5-03 Upstream PR description
 - [ ] P5-04 Push Phase 5 and record the final manual check
 
@@ -89,3 +89,6 @@ Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human
 
 ### P5-01 — 814fcf8
 readme.txt: four hooks under Actions & Filters, three secrets CLI bullets plus totp_storage note, TOTP storage FAQ; CHANGELOG.md [Unreleased] entry. readme.md unchanged (no equivalent sections). readme.txt is CRLF; preserved.
+
+### P5-02 — 0f5d369
+AGENTS.md (adapter bullet, marker row, Secrets API hooks, WP-CLI, base-class hooks, PHPStan level 5) and TESTS.md (new test files, helpers, phpstan stubs, feature-plugin wiring, CLI bullets). Docblock audit: adapter @since corrected 0.16.0 -> 0.18.0, added @since to private helpers; PHP hunks are docblock-only. TESTS.md documents the actual class/file names Two_Factor_Secrets_Tests and Two_Factor_Totp_Secrets_Tests.
