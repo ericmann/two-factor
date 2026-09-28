@@ -13,7 +13,7 @@
  * holds the secret; the marker is what makes "not yet migrated" distinguishable
  * from "migrated but unreadable".
  *
- * @since 0.16.0
+ * @since 0.18.0
  */
 class Two_Factor_Secrets {
 
@@ -22,12 +22,16 @@ class Two_Factor_Secrets {
 	 *
 	 * @internal Test seam only; keys set, get, delete, writable.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @var array<string, callable>
 	 */
 	public static $test_overrides = array();
 
 	/**
 	 * Whether the Secrets API is available right now.
+	 *
+	 * @since 0.18.0
 	 *
 	 * @return bool
 	 */
@@ -55,6 +59,8 @@ class Two_Factor_Secrets {
 	/**
 	 * Whether the active secrets provider accepts writes.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @return bool
 	 */
 	public static function is_provider_writable() {
@@ -72,6 +78,8 @@ class Two_Factor_Secrets {
 	/**
 	 * Whether new secrets may be written to the Secrets API.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @param int $user_id User ID; may be 0 when no user is in context.
 	 * @return bool
 	 */
@@ -86,7 +94,7 @@ class Two_Factor_Secrets {
 		 * This controls writes and migration only. Users whose secret was already
 		 * migrated are still read from the Secrets API while it is present.
 		 *
-		 * @since 0.16.0
+		 * @since 0.18.0
 		 *
 		 * @param bool $enabled Whether to use the Secrets API. Default true.
 		 * @param int  $user_id User ID, which may be 0 when no user is in context.
@@ -100,6 +108,8 @@ class Two_Factor_Secrets {
 
 	/**
 	 * Build the secret name for a user.
+	 *
+	 * @since 0.18.0
 	 *
 	 * @param int    $user_id User ID.
 	 * @param string $slug    Secret slug, such as "totp".
@@ -116,6 +126,8 @@ class Two_Factor_Secrets {
 	/**
 	 * Get the user meta key holding the network marker.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @param string $slug Secret slug.
 	 * @return string
 	 *
@@ -129,6 +141,8 @@ class Two_Factor_Secrets {
 
 	/**
 	 * Read a user's secret.
+	 *
+	 * @since 0.18.0
 	 *
 	 * @param int    $user_id User ID.
 	 * @param string $slug    Secret slug.
@@ -170,6 +184,8 @@ class Two_Factor_Secrets {
 	/**
 	 * Store a user's secret.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @param int    $user_id User ID.
 	 * @param string $slug    Secret slug.
 	 * @param string $value   Secret value.
@@ -199,6 +215,8 @@ class Two_Factor_Secrets {
 	 *
 	 * A missing secret counts as success.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @param int    $user_id User ID.
 	 * @param string $slug    Secret slug.
 	 * @return true|WP_Error
@@ -221,6 +239,8 @@ class Two_Factor_Secrets {
 	/**
 	 * Label of the active secrets provider.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @return string
 	 */
 	public static function provider_label() {
@@ -233,6 +253,8 @@ class Two_Factor_Secrets {
 
 	/**
 	 * Wipe a value from memory where possible.
+	 *
+	 * @since 0.18.0
 	 *
 	 * @param string $value Value to wipe.
 	 * @return void
@@ -249,6 +271,8 @@ class Two_Factor_Secrets {
 	/**
 	 * Validate a slug.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @param string $slug Secret slug.
 	 * @return void
 	 *
@@ -262,6 +286,8 @@ class Two_Factor_Secrets {
 
 	/**
 	 * Write to the Secrets API.
+	 *
+	 * @since 0.18.0
 	 *
 	 * @param string $name  Secret name.
 	 * @param string $value Secret value.
@@ -277,6 +303,8 @@ class Two_Factor_Secrets {
 
 	/**
 	 * Read and reveal from the Secrets API.
+	 *
+	 * @since 0.18.0
 	 *
 	 * @param string $name Secret name.
 	 * @return string|null|WP_Error
@@ -297,6 +325,8 @@ class Two_Factor_Secrets {
 
 	/**
 	 * Delete from the Secrets API.
+	 *
+	 * @since 0.18.0
 	 *
 	 * @param string $name Secret name.
 	 * @return true|WP_Error

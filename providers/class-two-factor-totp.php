@@ -687,6 +687,8 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	/**
 	 * Fire the migration failure action.
 	 *
+	 * @since 0.18.0
+	 *
 	 * @param int      $user_id User ID.
 	 * @param WP_Error $error   The failure.
 	 *
@@ -1388,6 +1390,8 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 
 	/**
 	 * Announce that a user's stored secret cannot be used.
+	 *
+	 * @since 0.18.0
 	 *
 	 * @param int      $user_id User ID.
 	 * @param WP_Error $error   Why the secret is unavailable.
