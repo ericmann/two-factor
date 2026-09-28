@@ -9,6 +9,7 @@ parameters:
 		- providers
 		- settings
 		- class-two-factor-compat.php
+		- class-two-factor-secrets.php
 		- class-two-factor-core.php
 		- two-factor.php
 	scanFiles:

@@ -49,6 +49,11 @@ require_once TWO_FACTOR_DIR . 'class-two-factor-core.php';
  */
 require_once TWO_FACTOR_DIR . 'class-two-factor-compat.php';
 
+/**
+ * Storage adapter for the WordPress Secrets API.
+ */
+require_once TWO_FACTOR_DIR . 'class-two-factor-secrets.php';
+
 // Load settings UI class so the settings page can be rendered.
 require_once TWO_FACTOR_DIR . 'settings/class-two-factor-settings.php';
 
