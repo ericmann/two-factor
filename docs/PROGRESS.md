@@ -4,7 +4,7 @@ Started: 2026-09-28T19:43:32.427Z
 
 ## Tasks
 - [x] P0-01 Create the build branch and load the Secrets API feature plugin in the tests environment
-- [ ] P0-02 PHPStan stubs for the Secrets API and PHPUnit exclusion of the stub directory
+- [x] P0-02 PHPStan stubs for the Secrets API and PHPUnit exclusion of the stub directory
 - [ ] P0-03 Push Phase 0 and record the manual environment check
 - [ ] P1-01 `Two_Factor_Secrets` adapter with tests and the shared secrets test case
 - [ ] P1-02 Provider base hooks and fail-closed handling of enrolled-but-unavailable providers in core
@@ -30,3 +30,6 @@ Started: 2026-09-28T19:43:32.427Z
 
 ### P0-01 — f54ffa6
 Config/bootstrap done earlier by operator (e9e18d7); added two acceptance tests in tests/two-factor.php. Both run (not skipped) in single and multisite, 305 tests each. Interpretation: stayed on build/2026-09-28 rather than creating build/secrets-api-totp.
+
+### P0-02 — 51fff02
+Added tests/phpstan/secrets-api-stubs.php, scanFiles entry, and tests/phpstan exclude in both phpunit configs. Lint and both suites green (305 tests).
