@@ -1051,4 +1051,67 @@ class Two_Factor_Totp_Secrets_Tests extends Two_Factor_Secrets_UnitTestCase {
 			$result['description']
 		);
 	}
+
+	/**
+	 * Export moves a key back to user meta.
+	 */
+	public function test_export_user_totp_key_round_trip() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+
+		$this->assertTrue( $this->provider->export_user_totp_key( $user_id ) );
+		$this->assertSame( 'ABCDEFGH', $this->plaintext( $user_id ) );
+		$this->assertSame( '', $this->marker( $user_id ) );
+		$this->assertNull( wp_get_network_secret( "two-factor/totp-{$user_id}" ) );
+	}
+
+	/**
+	 * Nothing to export returns null.
+	 */
+	public function test_export_user_totp_key_null_when_plaintext_or_absent() {
+		$user_id = $this->user();
+		$this->assertNull( $this->provider->export_user_totp_key( $user_id ) );
+
+		update_user_meta( $user_id, Two_Factor_Totp::SECRET_META_KEY, 'ABCDEFGH' );
+		update_user_meta( $user_id, Two_Factor_Totp::SECRET_NETWORK_META_KEY, (string) get_current_network_id() );
+		$this->assertNull( $this->provider->export_user_totp_key( $user_id ) );
+	}
+
+	/**
+	 * An unreadable secret is left untouched.
+	 */
+	public function test_export_user_totp_key_error_when_unreadable() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+		$this->make_unreadable();
+
+		$this->assertWPError( $this->provider->export_user_totp_key( $user_id ) );
+		$this->assertSame( '', $this->plaintext( $user_id ) );
+		$this->assertSame( (string) get_current_network_id(), $this->marker( $user_id ) );
+	}
+
+	/**
+	 * A plaintext write mismatch rolls back.
+	 */
+	public function test_export_user_totp_key_mismatch_cleans_up() {
+		$this->require_secrets_api();
+		$user_id = $this->user();
+		$this->provider->set_user_totp_key( $user_id, 'ABCDEFGH' );
+		add_filter(
+			'update_user_metadata',
+			function ( $check, $object_id, $meta_key ) {
+				return Two_Factor_Totp::SECRET_META_KEY === $meta_key ? true : $check;
+			},
+			10,
+			3
+		);
+
+		$result = $this->provider->export_user_totp_key( $user_id );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'two_factor_secrets_export_mismatch', $result->get_error_code() );
+		$this->assertSame( (string) get_current_network_id(), $this->marker( $user_id ) );
+	}
 }

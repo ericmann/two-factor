@@ -632,6 +632,59 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	}
 
 	/**
+	 * Move a TOTP key from the Secrets API back into user meta.
+	 *
+	 * Used when decommissioning the Secrets API. The Secrets API copy is removed only after the
+	 * plaintext copy has been read back and matches.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @param int $user_id User ID.
+	 *
+	 * @return true|null|WP_Error True when exported, null when there is nothing to export, WP_Error on failure.
+	 */
+	public function export_user_totp_key( $user_id ) {
+		if ( '' !== (string) get_user_meta( $user_id, self::SECRET_META_KEY, true ) ) {
+			return null;
+		}
+
+		if ( '' === (string) get_user_meta( $user_id, self::SECRET_NETWORK_META_KEY, true ) ) {
+			return null;
+		}
+
+		$secret = Two_Factor_Secrets::get_user_secret( $user_id, self::SECRET_SLUG );
+
+		if ( is_wp_error( $secret ) ) {
+			return $secret;
+		}
+
+		if ( ! is_string( $secret ) ) {
+			return null;
+		}
+
+		update_user_meta( $user_id, self::SECRET_META_KEY, $secret );
+		$readback = (string) get_user_meta( $user_id, self::SECRET_META_KEY, true );
+
+		if ( ! hash_equals( $secret, $readback ) ) {
+			delete_user_meta( $user_id, self::SECRET_META_KEY );
+			Two_Factor_Secrets::memzero( $secret );
+			Two_Factor_Secrets::memzero( $readback );
+
+			return new WP_Error(
+				'two_factor_secrets_export_mismatch',
+				__( 'The exported secret did not match the original, so the export was rolled back.', 'two-factor' )
+			);
+		}
+
+		Two_Factor_Secrets::delete_user_secret( $user_id, self::SECRET_SLUG );
+		Two_Factor_Secrets::memzero( $secret );
+		Two_Factor_Secrets::memzero( $readback );
+		self::clear_affected_users_cache();
+
+		return true;
+	}
+
+	/**
 	 * Fire the migration failure action.
 	 *
 	 * @param int      $user_id User ID.
