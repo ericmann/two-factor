@@ -125,6 +125,11 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 			$backup_codes_remaining = Two_Factor_Backup_Codes::codes_remaining_for_user( $user );
 		}
 
+		$totp_storage = 'none';
+		if ( class_exists( 'Two_Factor_Totp' ) ) {
+			$totp_storage = Two_Factor_Totp::get_instance()->get_user_totp_key_storage( $user->ID );
+		}
+
 		$items = array(
 			array(
 				'user_id'                => $user->ID,
@@ -133,6 +138,7 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 				'primary_provider'       => $primary ? $primary->get_key() : '',
 				'enabled_providers'      => implode( ', ', $enabled_providers ),
 				'backup_codes_remaining' => $backup_codes_remaining,
+				'totp_storage'           => $totp_storage,
 			),
 		);
 
@@ -140,7 +146,7 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 		WP_CLI\Utils\format_items(
 			$format,
 			$items,
-			array( 'user_id', 'user_login', 'using_2fa', 'primary_provider', 'enabled_providers', 'backup_codes_remaining' )
+			array( 'user_id', 'user_login', 'using_2fa', 'primary_provider', 'enabled_providers', 'backup_codes_remaining', 'totp_storage' )
 		);
 	}
 
@@ -708,5 +714,83 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Inspect and manage where authenticator app secrets are stored.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <action>
+	 * : Action to perform. Supported: status.
+	 *
+	 * [--format=<format>]
+	 * : Output format for status.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - json
+	 *   - csv
+	 *   - yaml
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Show Secrets API availability and user counts
+	 *     $ wp two-factor secrets status
+	 *
+	 * @since 0.18.0
+	 *
+	 * @param array $args       Positional arguments: action.
+	 * @param array $assoc_args Associative arguments.
+	 */
+	public function secrets( $args, $assoc_args ) {
+		$action = isset( $args[0] ) ? $args[0] : '';
+
+		switch ( $action ) {
+			case 'status':
+				$this->secrets_status( $assoc_args );
+				break;
+
+			default:
+				WP_CLI::error(
+					sprintf(
+						/* translators: %s: provided action */
+						__( 'Unknown action "%s". Use: wp two-factor secrets <status|migrate|export>', 'two-factor' ),
+						(string) $action
+					)
+				);
+		}
+	}
+
+	/**
+	 * Report Secrets API availability and how many users are in each storage state.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @param array $assoc_args Associative arguments.
+	 */
+	private function secrets_status( $assoc_args ) {
+		$counts = Two_Factor_Totp::count_users_by_storage();
+
+		$items = array(
+			array(
+				'api_present'     => Two_Factor_Secrets::is_api_present() ? 'true' : 'false',
+				'provider'        => Two_Factor_Secrets::provider_label(),
+				'writable'        => Two_Factor_Secrets::is_provider_writable() ? 'true' : 'false',
+				'filter_enabled'  => (bool) apply_filters( 'two_factor_use_secrets_api', true, 0 ) ? 'true' : 'false',
+				'plaintext_users' => $counts['plaintext'],
+				'migrated_users'  => $counts['migrated'],
+				'affected_users'  => $counts['affected'],
+			),
+		);
+
+		$format = WP_CLI\Utils\get_flag_value( $assoc_args, 'format', 'table' );
+		WP_CLI\Utils\format_items(
+			$format,
+			$items,
+			array( 'api_present', 'provider', 'writable', 'filter_enabled', 'plaintext_users', 'migrated_users', 'affected_users' )
+		);
 	}
 }

@@ -949,6 +949,44 @@ class Two_Factor_Totp extends Two_Factor_Provider {
 	}
 
 	/**
+	 * Count users by where their TOTP key is stored.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @return array{plaintext: int, migrated: int, affected: int}
+	 */
+	public static function count_users_by_storage() {
+		$count = function ( $meta_key, $compare, $value = null ) {
+			$args = array(
+				'blog_id'      => 0,
+				'fields'       => 'ID',
+				'number'       => 1,
+				'count_total'  => true,
+				'meta_key'     => $meta_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- CLI reporting.
+				'meta_compare' => $compare,
+			);
+
+			if ( null !== $value ) {
+				$args['meta_value'] = $value; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- CLI reporting.
+			}
+
+			$query = new WP_User_Query( $args );
+
+			return (int) $query->get_total();
+		};
+
+		$affected = Two_Factor_Secrets::is_api_present()
+			? $count( self::SECRET_NETWORK_META_KEY, '!=', (string) get_current_network_id() )
+			: $count( self::SECRET_NETWORK_META_KEY, 'EXISTS' );
+
+		return array(
+			'plaintext' => $count( self::SECRET_META_KEY, '!=', '' ),
+			'migrated'  => $count( self::SECRET_NETWORK_META_KEY, 'EXISTS' ),
+			'affected'  => $affected,
+		);
+	}
+
+	/**
 	 * Get where a user's TOTP key is stored.
 	 *
 	 * Never migrates.

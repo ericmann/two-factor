@@ -224,7 +224,7 @@ class Two_Factor_Secrets {
 	 * @return string
 	 */
 	public static function provider_label() {
-		if ( function_exists( 'wp_secrets_provider_label' ) ) {
+		if ( self::is_api_present() ) {
 			return (string) wp_secrets_provider_label();
 		}
 

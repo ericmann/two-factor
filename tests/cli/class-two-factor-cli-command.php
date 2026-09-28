@@ -269,6 +269,148 @@ class Tests_Two_Factor_CLI_Command extends WP_UnitTestCase {
 		$this->assertSame( 4, $this->last_format()['items'][0]['backup_codes_remaining'] );
 	}
 
+	/**
+	 * A user without a TOTP key reports storage none.
+	 *
+	 * @covers Two_Factor_CLI_Command::status
+	 */
+	public function test_status_reports_totp_storage_none() {
+		$this->command->status( array( 'cli_test_user' ), array() );
+
+		$this->assertSame( 'none', $this->last_format()['items'][0]['totp_storage'] );
+		$this->assertContains( 'totp_storage', $this->last_format()['fields'] );
+	}
+
+	/**
+	 * A plaintext TOTP key reports storage plaintext.
+	 *
+	 * @covers Two_Factor_CLI_Command::status
+	 */
+	public function test_status_reports_totp_storage_plaintext() {
+		add_filter( 'two_factor_use_secrets_api', '__return_false' );
+		Two_Factor_Totp::get_instance()->set_user_totp_key( $this->user->ID, 'ABCDEFGH' );
+
+		$this->command->status( array( 'cli_test_user' ), array() );
+
+		$this->assertSame( 'plaintext', $this->last_format()['items'][0]['totp_storage'] );
+	}
+
+	/**
+	 * A Secrets API TOTP key reports storage secrets-api.
+	 *
+	 * @covers Two_Factor_CLI_Command::status
+	 */
+	public function test_status_reports_totp_storage_secrets_api() {
+		if ( ! function_exists( 'wp_get_network_secret' ) ) {
+			$this->markTestSkipped( 'Secrets API feature plugin is not loaded.' );
+		}
+		Two_Factor_Totp::get_instance()->set_user_totp_key( $this->user->ID, 'ABCDEFGH' );
+
+		$this->command->status( array( 'cli_test_user' ), array() );
+
+		$this->assertSame( 'secrets-api', $this->last_format()['items'][0]['totp_storage'] );
+	}
+
+	/**
+	 * An unreachable key reports storage unavailable.
+	 *
+	 * @covers Two_Factor_CLI_Command::status
+	 */
+	public function test_status_reports_totp_storage_unavailable() {
+		update_user_meta( $this->user->ID, Two_Factor_Totp::SECRET_NETWORK_META_KEY, (string) get_current_network_id() );
+		add_filter( 'two_factor_secrets_api_present', '__return_false' );
+
+		$this->command->status( array( 'cli_test_user' ), array() );
+
+		$this->assertSame( 'unavailable', $this->last_format()['items'][0]['totp_storage'] );
+	}
+
+	/**
+	 * Secrets status reports a present API and user counts.
+	 *
+	 * @covers Two_Factor_CLI_Command::secrets
+	 */
+	public function test_secrets_status_reports_present_api_and_counts() {
+		if ( ! function_exists( 'wp_get_network_secret' ) ) {
+			$this->markTestSkipped( 'Secrets API feature plugin is not loaded.' );
+		}
+		$plaintext_user = self::factory()->user->create();
+		$migrated_user  = self::factory()->user->create();
+		$totp           = Two_Factor_Totp::get_instance();
+
+		add_filter( 'two_factor_use_secrets_api', '__return_false' );
+		$totp->set_user_totp_key( $plaintext_user, 'ABCDEFGH' );
+		remove_filter( 'two_factor_use_secrets_api', '__return_false' );
+		$totp->set_user_totp_key( $migrated_user, 'ABCDEFGH' );
+
+		$this->command->secrets( array( 'status' ), array() );
+
+		$item = $this->last_format()['items'][0];
+		$this->assertSame( 'true', $item['api_present'] );
+		$this->assertSame( 1, $item['plaintext_users'] );
+		$this->assertSame( 1, $item['migrated_users'] );
+		$this->assertSame( 0, $item['affected_users'] );
+		$this->assertSame( array( 'api_present', 'provider', 'writable', 'filter_enabled', 'plaintext_users', 'migrated_users', 'affected_users' ), $this->last_format()['fields'] );
+	}
+
+	/**
+	 * Secrets status reports an absent API.
+	 *
+	 * @covers Two_Factor_CLI_Command::secrets
+	 */
+	public function test_secrets_status_reports_absent_api() {
+		add_filter( 'two_factor_secrets_api_present', '__return_false' );
+		update_user_meta( $this->user->ID, Two_Factor_Totp::SECRET_NETWORK_META_KEY, (string) get_current_network_id() );
+
+		$this->command->secrets( array( 'status' ), array() );
+
+		$item = $this->last_format()['items'][0];
+		$this->assertSame( 'false', $item['api_present'] );
+		$this->assertSame( '', $item['provider'] );
+		$this->assertSame( 1, $item['affected_users'] );
+	}
+
+	/**
+	 * The --format flag is passed through for secrets status.
+	 *
+	 * @covers Two_Factor_CLI_Command::secrets
+	 */
+	public function test_secrets_status_format_passthrough() {
+		$this->command->secrets( array( 'status' ), array( 'format' => 'json' ) );
+
+		$this->assertSame( 'json', $this->last_format()['format'] );
+	}
+
+	/**
+	 * An unknown secrets action errors.
+	 *
+	 * @covers Two_Factor_CLI_Command::secrets
+	 */
+	public function test_secrets_unknown_action_errors() {
+		$message = $this->assert_command_aborts(
+			function () {
+				$this->command->secrets( array( 'bogus' ), array() );
+			}
+		);
+
+		$this->assertStringContainsString( 'Unknown action "bogus"', $message );
+	}
+
+	/**
+	 * A missing secrets action errors.
+	 *
+	 * @covers Two_Factor_CLI_Command::secrets
+	 */
+	public function test_secrets_missing_action_errors() {
+		$message = $this->assert_command_aborts(
+			function () {
+				$this->command->secrets( array(), array() );
+			}
+		);
+
+		$this->assertStringContainsString( 'Unknown action', $message );
+	}
+
 	/*
 	 * ---------------------------------------------------------------------
 	 * list-providers
