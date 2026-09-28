@@ -28,6 +28,15 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 	const BACKUP_CODES_MAX_GENERATE_COUNT = 100;
 
 	/**
+	 * Default number of users processed per batch by the secrets migrate and export commands.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @var int
+	 */
+	const SECRETS_DEFAULT_BATCH_SIZE = 100;
+
+	/**
 	 * Resolve a user from an ID, login, or email address.
 	 *
 	 * Resolution order is ID, then login, then email.
@@ -722,7 +731,16 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 	 * ## OPTIONS
 	 *
 	 * <action>
-	 * : Action to perform. Supported: status.
+	 * : Action to perform. Supported: status, migrate.
+	 *
+	 * [--user=<user>]
+	 * : For migrate, only migrate this user (ID, login, or email).
+	 *
+	 * [--batch-size=<n>]
+	 * : For migrate, number of users to process per batch. Defaults to 100.
+	 *
+	 * [--dry-run]
+	 * : For migrate, report what would be migrated without changing anything.
 	 *
 	 * [--format=<format>]
 	 * : Output format for status.
@@ -740,6 +758,12 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 	 *     # Show Secrets API availability and user counts
 	 *     $ wp two-factor secrets status
 	 *
+	 *     # Move all plaintext authenticator app secrets into the Secrets API
+	 *     $ wp two-factor secrets migrate
+	 *
+	 *     # Preview the migration
+	 *     $ wp two-factor secrets migrate --dry-run
+	 *
 	 * @since 0.18.0
 	 *
 	 * @param array $args       Positional arguments: action.
@@ -751,6 +775,10 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 		switch ( $action ) {
 			case 'status':
 				$this->secrets_status( $assoc_args );
+				break;
+
+			case 'migrate':
+				$this->secrets_migrate( $assoc_args );
 				break;
 
 			default:
@@ -792,5 +820,133 @@ class Two_Factor_CLI_Command extends WP_CLI_Command {
 			$items,
 			array( 'api_present', 'provider', 'writable', 'filter_enabled', 'plaintext_users', 'migrated_users', 'affected_users' )
 		);
+	}
+
+	/**
+	 * Parse the --batch-size flag.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @param array $assoc_args Associative arguments.
+	 * @return int
+	 */
+	private function get_secrets_batch_size( $assoc_args ) {
+		$raw = WP_CLI\Utils\get_flag_value( $assoc_args, 'batch-size', (string) self::SECRETS_DEFAULT_BATCH_SIZE );
+
+		if ( ! is_scalar( $raw ) || ! preg_match( '/^\d+$/', trim( (string) $raw ) ) || (int) trim( (string) $raw ) < 1 ) {
+			WP_CLI::error(
+				sprintf(
+					/* translators: %s: provided batch size */
+					__( 'Invalid value for --batch-size: %s. It must be a decimal integer of at least 1.', 'two-factor' ),
+					wp_json_encode( $raw )
+				)
+			);
+		}
+
+		return (int) trim( (string) $raw );
+	}
+
+	/**
+	 * Migrate plaintext TOTP secrets into the Secrets API.
+	 *
+	 * @since 0.18.0
+	 *
+	 * @param array $assoc_args Associative arguments.
+	 */
+	private function secrets_migrate( $assoc_args ) {
+		$batch   = $this->get_secrets_batch_size( $assoc_args );
+		$dry_run = (bool) WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false );
+
+		if ( ! Two_Factor_Secrets::can_write() ) {
+			WP_CLI::error( __( 'The Secrets API is not available for writing (missing, read-only, or disabled by the two_factor_use_secrets_api filter). Nothing was migrated.', 'two-factor' ) );
+		}
+
+		$totp     = Two_Factor_Totp::get_instance();
+		$migrated = 0;
+		$failed   = 0;
+		$skipped  = 0;
+
+		$migrate_one = function ( $user_id ) use ( $totp, $dry_run, &$migrated, &$failed, &$skipped ) {
+			if ( $dry_run ) {
+				WP_CLI::log( sprintf( 'Would migrate user %d', $user_id ) );
+				++$skipped;
+				return 'skipped';
+			}
+
+			$result = $totp->migrate_user_totp_key( $user_id );
+
+			if ( true === $result ) {
+				++$migrated;
+				return 'migrated';
+			}
+
+			if ( is_wp_error( $result ) ) {
+				++$failed;
+				WP_CLI::warning( sprintf( 'User %d: %s', $user_id, $result->get_error_message() ) );
+				return 'failed';
+			}
+
+			++$skipped;
+			return 'skipped';
+		};
+
+		$user_identifier = WP_CLI\Utils\get_flag_value( $assoc_args, 'user', null );
+
+		if ( null !== $user_identifier ) {
+			$user = $this->resolve_user( (string) $user_identifier );
+			if ( ! $user ) {
+				WP_CLI::error(
+					sprintf(
+						/* translators: %s: user identifier */
+						__( 'User not found: %s', 'two-factor' ),
+						$user_identifier
+					)
+				);
+			}
+
+			$migrate_one( $user->ID );
+		} else {
+			$offset = 0;
+
+			do {
+				$query = new WP_User_Query(
+					array(
+						'blog_id'      => 0,
+						'fields'       => 'ID',
+						'number'       => $batch,
+						'offset'       => $offset,
+						'orderby'      => 'ID',
+						'order'        => 'ASC',
+						'meta_key'     => Two_Factor_Totp::SECRET_META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- One-off CLI migration.
+						'meta_value'   => '', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- One-off CLI migration.
+						'meta_compare' => '!=',
+						'count_total'  => false,
+					)
+				);
+				$ids   = array_map( 'intval', $query->get_results() );
+
+				// Migrated users drop out of the result set; skipped and failed ones stay, so step past them.
+				$stayed = 0;
+				foreach ( $ids as $user_id ) {
+					if ( 'migrated' !== $migrate_one( $user_id ) ) {
+						++$stayed;
+					}
+				}
+
+				$offset += $stayed;
+			} while ( ! empty( $ids ) );
+		}
+
+		Two_Factor_Totp::clear_affected_users_cache();
+
+		$message = sprintf(
+			/* translators: 1: number migrated, 2: number failed, 3: number skipped */
+			__( 'Migrated %1$d, failed %2$d, skipped %3$d.', 'two-factor' ),
+			$migrated,
+			$failed,
+			$skipped
+		);
+
+		WP_CLI::success( $dry_run ? __( 'Dry run: ', 'two-factor' ) . $message : $message );
 	}
 }
