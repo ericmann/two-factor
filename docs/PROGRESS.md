@@ -3,7 +3,7 @@ Branch: build/2026-09-28
 Started: 2026-09-28T19:43:32.427Z
 
 ## Tasks
-- [~] P0-01 Create the build branch and load the Secrets API feature plugin in the tests environment
+- [x] P0-01 Create the build branch and load the Secrets API feature plugin in the tests environment
 - [ ] P0-02 PHPStan stubs for the Secrets API and PHPUnit exclusion of the stub directory
 - [ ] P0-03 Push Phase 0 and record the manual environment check
 - [ ] P1-01 `Two_Factor_Secrets` adapter with tests and the shared secrets test case
@@ -27,3 +27,6 @@ Started: 2026-09-28T19:43:32.427Z
 
 ## Log
 (one entry per task, appended by implement)
+
+### P0-01 — f54ffa6
+Config/bootstrap done earlier by operator (e9e18d7); added two acceptance tests in tests/two-factor.php. Both run (not skipped) in single and multisite, 305 tests each. Interpretation: stayed on build/2026-09-28 rather than creating build/secrets-api-totp.
