@@ -6,7 +6,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P0-01 Create the build branch and load the Secrets API feature plugin in the tests environment
 - [x] P0-02 PHPStan stubs for the Secrets API and PHPUnit exclusion of the stub directory
 - [x] P0-03 Push Phase 0 and record the manual environment check
-- [ ] P1-01 `Two_Factor_Secrets` adapter with tests and the shared secrets test case
+- [x] P1-01 `Two_Factor_Secrets` adapter with tests and the shared secrets test case
 - [ ] P1-02 Provider base hooks and fail-closed handling of enrolled-but-unavailable providers in core
 - [ ] P1-03 Push Phase 1 and record the manual check
 - [ ] P2-01 TOTP tri-state read, Secrets API writes and lazy migration
@@ -36,3 +36,7 @@ Added tests/phpstan/secrets-api-stubs.php, scanFiles entry, and tests/phpstan ex
 
 ### P0-03 — 9136355
 Pushed build/2026-09-28 to origin (ericmann/two-factor). gh default repo is ericmann/two-factor. Empty commit used as task commit. Manual check: NOT VERIFIED (human): (a) fresh clone env start clones ericmann/secrets-api v0.2.1; (b) CI passes on WP latest, 7.0-branch, 7.1-branch legs; (c) gh repo set-default --view shows the fork.
+
+### P1-01 — 07e94fb
+Added class-two-factor-secrets.php (Two_Factor_Secrets), required in two-factor.php, wired into phpstan paths and both phpunit coverage whitelists, bootstrap requires tests/class-two-factor-secrets-test-case.php. 18 tests in group secrets, both suites green (323 tests).
+Interpretation: test class is Two_Factor_Secrets_Tests in tests/class-two-factor-secrets-tests.php (not Tests_Two_Factor_Secrets): PHPCS requires file name = class name for non-WP test-case parents, and a file sorting before class-two-factor-core.php breaks core tests (core registers set_auth_cookie hooks in set_up_before_class; an earlier test class wipes them). Later test files must sort after class-two-factor-core.php or extend nothing that runs first. Also the internal filter param is $enabled (PHPCS reserved keyword).
