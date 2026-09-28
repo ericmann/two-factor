@@ -14,7 +14,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P2-03 User deletion hooks and uninstall cleanup of Secrets API entries
 - [x] P2-04 Push Phase 2 and record the manual check
 - [x] P3-01 Affected-user detection and the administrator notice
-- [ ] P3-02 Site Health test `two_factor_totp_secret_storage`
+- [x] P3-02 Site Health test `two_factor_totp_secret_storage`
 - [ ] P3-03 Push Phase 3 and record the manual check
 - [ ] P4-01 `wp two-factor status` storage field and `wp two-factor secrets status`
 - [ ] P4-02 `wp two-factor secrets migrate`
@@ -66,3 +66,7 @@ Pushed to origin. Empty commit as task commit. Manual check: NOT VERIFIED (human
 
 ### P3-01 — 3613cd1
 Added AFFECTED_USERS_TRANSIENT/AFFECTED_USERS_CACHE_TTL (300), has_affected_users(), clear_affected_users_cache() (called from set/delete/migrate success paths), admin_notice_secrets_api_missing hooked to admin_notices and network_admin_notices (non-dismissible error, contains both wp two-factor secrets export/migrate command strings). 8 tests; 382 tests both suites (skips are env-specific).
+
+### P3-02 — 866b1ca
+register_site_health_test, has_plaintext_users(), site_health_secret_storage() with the five status paths in SPEC order. 6 tests; 388 tests both suites.
+Interpretation: API present + no plaintext users is 'good' naming the provider label even when writes are disabled; case (4) only when plaintext remains and can_write() is false.
