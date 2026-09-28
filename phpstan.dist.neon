@@ -13,3 +13,4 @@ parameters:
 		- two-factor.php
 	scanFiles:
 		- vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php
+		- tests/phpstan/secrets-api-stubs.php
