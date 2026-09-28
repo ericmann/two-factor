@@ -10,7 +10,7 @@ Started: 2026-09-28T19:43:32.427Z
 - [x] P1-02 Provider base hooks and fail-closed handling of enrolled-but-unavailable providers in core
 - [x] P1-03 Push Phase 1 and record the manual check
 - [x] P2-01 TOTP tri-state read, Secrets API writes and lazy migration
-- [ ] P2-02 Fail-closed validation, login prompt, profile UI and the login lockout regression
+- [x] P2-02 Fail-closed validation, login prompt, profile UI and the login lockout regression
 - [ ] P2-03 User deletion hooks and uninstall cleanup of Secrets API entries
 - [ ] P2-04 Push Phase 2 and record the manual check
 - [ ] P3-01 Affected-user detection and the administrator notice
@@ -52,3 +52,7 @@ Pushed to origin. Empty commit used as task commit. Manual check: NOT VERIFIED (
 Two_Factor_Totp: SECRET_NETWORK_META_KEY/SECRET_SLUG, get_user_totp_key_state, migrate_user_totp_key (verified, idempotent, fires two_factor_secrets_migrated / _migration_failed), Secrets-API-first set/delete, is_available_for_user and is_enrolled_but_unavailable_for_user by marker, get_user_totp_key_storage, marker added to uninstall meta keys. Tests: tests/providers/class-two-factor-totp-secrets-tests.php (27 tests; multisite blog test skipped on single). Suites: 356 tests, single has 1 expected skip, multisite runs it.
 Interpretation: class/file named Two_Factor_Totp_Secrets_Tests (PHPCS file naming, as P1-01).
 Note: delete_user_totp_key now returns true only when plaintext, marker and secret are gone (also true when nothing existed).
+
+### P2-02 — f346ba4
+validate_code_for_user, authentication_page and user_two_factor_options now use get_user_totp_key_state; private report_unavailable fires two_factor_secret_unavailable(user_id,'totp',WP_Error). 11 tests appended to tests/providers/class-two-factor-totp-secrets-tests.php incl. login lockout regression (affected TOTP-only user gets Email fallback / WP_Error, send_auth_cookies still blocked; backup codes retained). 367 tests both suites.
+Interpretation: unavailable prompt renders the two prompt actions and the unavailable message but omits the generic 'Enter the code' line; test class named Two_Factor_Totp_Secrets_Tests.
