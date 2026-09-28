@@ -3,7 +3,7 @@ Branch: build/2026-09-28
 Started: 2026-09-28T19:43:32.427Z
 
 ## Tasks
-- [ ] P0-01 Create the build branch and load the Secrets API feature plugin in the tests environment
+- [~] P0-01 Create the build branch and load the Secrets API feature plugin in the tests environment
 - [ ] P0-02 PHPStan stubs for the Secrets API and PHPUnit exclusion of the stub directory
 - [ ] P0-03 Push Phase 0 and record the manual environment check
 - [ ] P1-01 `Two_Factor_Secrets` adapter with tests and the shared secrets test case

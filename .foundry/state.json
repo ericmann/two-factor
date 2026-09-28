@@ -4,7 +4,7 @@
   "reviewed": false,
   "verdict": null,
   "summarized": false,
-  "halted": null,
+  "halted": "P0-01 blocked at operator level. (1) The permission classifier denied twice (Untrusted Code Integration) the commands that add the third-party GitHub plugin ericmann/secrets-api#v0.2.1 to .wp-env.json and start wp-env. (2) Verify commands cannot start: node_modules is missing (npm-run-all, wp-env, phpcs not found; exit 127), so nothing can be tested. Needed: allow this dependency (or add a Bash permission rule), and run npm install and composer install. No source changes were made.",
   "preexistingUntracked": [],
   "policies": {
     "signing": "auto",
